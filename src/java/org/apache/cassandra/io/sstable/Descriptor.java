@@ -27,12 +27,14 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CharMatcher;
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.metadata.IMetadataSerializer;
 import org.apache.cassandra.io.sstable.metadata.LegacyMetadataSerializer;
 import org.apache.cassandra.io.sstable.metadata.MetadataSerializer;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.io.sstable.Component.separator;
@@ -283,7 +285,9 @@ public class Descriptor
         Version version = fmt.info.getVersion(nexttok);
 
         // ks/cf names
-        String ksname, cfname;
+        String ksname = null;
+        String cfname = null;
+        
         if (version.hasNewFileName())
         {
             // for 2.1+ read ks and cf names from directory
@@ -299,12 +303,27 @@ public class Descriptor
             {
                 cfDirectory = cfDirectory.getParentFile();
             }
-            else if (cfDirectory.getParentFile().getName().equals(Directories.SNAPSHOT_SUBDIR))
+            //get data directories, sorted by path length (longest to shortest)
+            String[] locations = DatabaseDescriptor.getAllDataFileLocations();
+            String[] basePaths = new String[locations.length];
+            for(int i = 0; i < locations.length; i++)
             {
-                cfDirectory = cfDirectory.getParentFile().getParentFile();
+                basePaths[i] = FileUtils.getCanonicalPath(locations[i]);
             }
-            cfname = cfDirectory.getName().split("-")[0] + indexName;
-            ksname = cfDirectory.getParentFile().getName();
+            Arrays.sort(basePaths, Comparator.comparingInt(String::length).reversed());
+
+            for(int i = 0; i < locations.length; i++)
+            {
+                //use longest match
+                String filePath = FileUtils.getCanonicalPath(parentDirectory);
+                if (filePath.startsWith(basePaths[i]))
+                {
+                    String path[] = filePath.split(basePaths[i],2)[1].split(File.separator);
+                    ksname = path[1];
+                    cfname = path[2].split("-")[0] + indexName;
+                    break;
+                }
+            }
         }
         else
         {
@@ -312,6 +331,7 @@ public class Descriptor
             ksname = tokenStack.pop();
         }
         assert tokenStack.isEmpty() : "Invalid file name " + name + " in " + directory;
+        assert ksname != null && cfname != null: "Invalid file name " + name + " in " + directory;
 
         return Pair.create(new Descriptor(version, parentDirectory, ksname, cfname, generation, fmt,
                                           // _assume_ version from version
