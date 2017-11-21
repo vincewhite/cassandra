@@ -198,6 +198,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private volatile boolean gossipActive = false;
     private final AtomicBoolean authSetupCalled = new AtomicBoolean(false);
     private volatile boolean authSetupComplete = false;
+    private volatile boolean streamingSuccessful = false;
+
+    public boolean isBootstrapSuccessful()
+    {
+        return streamingSuccessful || isSurveyMode;
+    }
 
     /* the probability for tracing any particular request, 0 disables tracing and 1 enables for all */
     private double traceProbability = 0.0;
@@ -364,6 +370,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (daemon == null)
         {
             throw new IllegalStateException("No configured daemon");
+        }
+        else if (!isBootstrapSuccessful())
+        {
+            throw new IllegalStateException("Bootstrapping must complete before listening for clients");
         }
         daemon.thriftServer.start();
     }
@@ -1012,6 +1022,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     for (InetAddress existing : current)
                         Gossiper.instance.replacedEndpoint(existing);
                 }
+                streamingSuccessful = true;
             }
             else
             {

@@ -612,7 +612,14 @@ public class CassandraDaemon
                 System.err.close();
             }
 
-            start();
+            if (StorageService.instance.isBootstrapSuccessful())
+            {
+                start();
+            }
+            else
+            {
+                logger.info("Didn't complete streaming during bootstrap, not listening for clients");
+            }
         }
         catch (Throwable e)
         {
@@ -649,6 +656,10 @@ public class CassandraDaemon
     {
         if (nativeTransportService == null)
             throw new IllegalStateException("setup() must be called first for CassandraDaemon");
+        else if (!StorageService.instance.isBootstrapSuccessful())
+        {
+            throw new IllegalStateException("Bootstrapping must complete before listening for clients");
+        }
         else
             nativeTransportService.start();
     }
