@@ -65,7 +65,8 @@ class MessageInHandler extends ByteToMessageDecoder
         READ_SECOND_CHUNK,
         READ_PARAMETERS_DATA,
         READ_PAYLOAD_SIZE,
-        READ_PAYLOAD
+        READ_PAYLOAD,
+        CLOSING
     }
 
     /**
@@ -112,6 +113,11 @@ class MessageInHandler extends ByteToMessageDecoder
     @SuppressWarnings("resource")
     public void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out)
     {
+        if (state == state.CLOSING)
+        {
+            logger.debug("SPINNING ON CLOSE");
+            return;
+        }
         ByteBufDataInputPlus inputPlus = new ByteBufDataInputPlus(in);
         try
         {
@@ -119,7 +125,7 @@ class MessageInHandler extends ByteToMessageDecoder
             {
                 // an imperfect optimization around calling in.readableBytes() all the time
                 int readableBytes = in.readableBytes();
-                logger.debug("readableBytes: %s, %s", readableBytes, ctx.name());
+                logger.debug("readableBytes: {}, {}", readableBytes, ctx.name());
 
                 switch (state)
                 {
@@ -194,19 +200,18 @@ class MessageInHandler extends ByteToMessageDecoder
                         }
 
                         logger.debug("messageHeader... \n" +
-                                     "messageId: %d\n" +
-                                     "constructionTime: %d\n" +
-                                     "from: %s\n" +
-                                     "verb: %s\n" +
-                                     "payloadSize: %d\n" +
-                                     "parameterCount: %d", messageHeader.messageId,
+                                     "messageId: {}\n" +
+                                     "constructionTime: {}\n" +
+                                     "from: {}\n" +
+                                     "verb: {}\n" +
+                                     "payloadSize: {}\n" +
+                                     "parameterCount: {}", messageHeader.messageId,
                                      messageHeader.constructionTime,
                                      messageHeader.from.toString(),
                                      messageHeader.verb.toString(),
                                      messageHeader.payloadSize,
                                      messageHeader.parameterCount);
 
-                        );
 
                         int messageId;
                         long constructionTime;
@@ -322,8 +327,9 @@ class MessageInHandler extends ByteToMessageDecoder
             logger.trace("IOException reading from socket; closing", cause);
         else
             logger.warn("Unexpected exception caught in inbound channel pipeline from " + ctx.channel().remoteAddress(), cause);
-
+        state = state.CLOSING;
         ctx.close();
+        logger.debug("CLOSED XXXXXX");
     }
 
     @Override
