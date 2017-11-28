@@ -119,12 +119,16 @@ class MessageInHandler extends ByteToMessageDecoder
             {
                 // an imperfect optimization around calling in.readableBytes() all the time
                 int readableBytes = in.readableBytes();
+                logger.debug("readableBytes: %s, %s", readableBytes, ctx.name());
 
                 switch (state)
                 {
                     case READ_FIRST_CHUNK:
                         if (readableBytes < FIRST_SECTION_BYTE_COUNT)
+                        {
+                            logger.debug("returning on READ_FIRST_CHUNK");
                             return;
+                        }
                         MessagingService.validateMagic(in.readInt());
                         messageHeader = new MessageHeader();
                         messageHeader.messageId = in.readInt();
@@ -139,14 +143,20 @@ class MessageInHandler extends ByteToMessageDecoder
                         // the "+ 1" is to make sure we have the size byte in addition to the serialized IP addr count of bytes in the buffer.
                         int serializedAddrSize;
                         if (readableBytes < 1 || readableBytes < (serializedAddrSize = in.getByte(in.readerIndex()) + 1))
+                        {
+                            logger.debug("returning on READ_IP_ADDRESS");
                             return;
+                        }
                         messageHeader.from = CompactEndpointSerializationHelper.deserialize(inputPlus);
                         state = State.READ_SECOND_CHUNK;
                         readableBytes -= serializedAddrSize;
                         // fall-through
                     case READ_SECOND_CHUNK:
                         if (readableBytes < SECOND_SECTION_BYTE_COUNT)
+                        {
+                            logger.debug("returning on READ_SECOND_CHUNK");
                             return;
+                        }
                         messageHeader.verb = MessagingService.Verb.fromId(in.readInt());
                         int paramCount = in.readInt();
                         messageHeader.parameterCount = paramCount;
@@ -158,21 +168,58 @@ class MessageInHandler extends ByteToMessageDecoder
                         if (messageHeader.parameterCount > 0)
                         {
                             if (!readParameters(in, inputPlus, messageHeader.parameterCount, messageHeader.parameters))
+                            {
+                                logger.debug("returning on READ_PARAMETERS_DATA");
                                 return;
+                            }
                             readableBytes = in.readableBytes(); // we read an indeterminate number of bytes for the headers, so just ask the buffer again
                         }
                         state = State.READ_PAYLOAD_SIZE;
                         // fall-through
                     case READ_PAYLOAD_SIZE:
                         if (readableBytes < 4)
+                        {
+                            logger.debug("returning on READ_PAYLOAD_SIZE");
                             return;
+                        }
                         messageHeader.payloadSize = in.readInt();
                         state = State.READ_PAYLOAD;
                         readableBytes -= 4;
                         // fall-through
                     case READ_PAYLOAD:
                         if (readableBytes < messageHeader.payloadSize)
-                            return;
+                        {
+                        logger.debug("returning on READ_PAYLOAD");
+                        return;
+                        }
+
+                        logger.debug("messageHeader... \n" +
+                                     "messageId: %d\n" +
+                                     "constructionTime: %d\n" +
+                                     "from: %s\n" +
+                                     "verb: %s\n" +
+                                     "payloadSize: %d\n" +
+                                     "parameterCount: %d", messageHeader.messageId,
+                                     messageHeader.constructionTime,
+                                     messageHeader.from.toString(),
+                                     messageHeader.verb.toString(),
+                                     messageHeader.payloadSize,
+                                     messageHeader.parameterCount);
+
+                        );
+
+                        int messageId;
+                        long constructionTime;
+                        InetAddress from;
+                        MessagingService.Verb verb;
+                        int payloadSize;
+
+                        Map<String, byte[]> parameters = Collections.emptyMap();
+
+                        /**
+                         * Total number of incoming parameters.
+                         */
+                        int parameterCount;
 
                         // TODO consider deserailizing the messge not on the event loop
                         MessageIn<Object> messageIn = MessageIn.read(inputPlus, messagingVersion,
