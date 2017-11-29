@@ -23,8 +23,10 @@ import java.util.UUID;
 
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -34,6 +36,13 @@ import static org.junit.Assert.*;
 
 public class DescriptorTest
 {
+
+    @BeforeClass
+    public static void setupDatabaseDescriptor()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
     private final String ksname = "ks";
     private final String cfname = "cf";
     private final String cfId = ByteBufferUtil.bytesToHex(ByteBufferUtil.bytes(UUID.randomUUID()));
@@ -42,7 +51,7 @@ public class DescriptorTest
     public DescriptorTest() throws IOException
     {
         // create CF directories, one without CFID and one with it
-        tempDataDir = File.createTempFile("DescriptorTest", null).getParentFile();
+        tempDataDir = new File(DatabaseDescriptor.getAllDataFileLocations()[0]);
     }
 
     @Test
@@ -144,9 +153,12 @@ public class DescriptorTest
              ".idx1" + File.separator + "la-1-big-Data.db",
         };
 
+        File cfIdDir = new File(tempDataDir.getAbsolutePath() + File.separator + ksname + File.separator + cfname + '-' + cfId);
+
+
         for (String name : names)
         {
-            assertNotNull(Descriptor.fromFilename(name));
+            assertNotNull(Descriptor.fromFilename(cfIdDir + File.separator + name));
         }
     }
 
@@ -169,6 +181,35 @@ public class DescriptorTest
                 //good
             }
         }
+    }
+
+    @Test
+    public void troublesomeNames()
+    {
+
+        String locations[] = DatabaseDescriptor.getAllDataFileLocations();
+        String keyspaces[] = {"snapshots", "backups"};
+        String columnfamilies[] = {"table"};
+        String components[] = {"la-1-big-Data.db"};
+
+        for (String location : locations)
+        {
+            for (String keyspace : keyspaces)
+            {
+                for (String columnfamily : columnfamilies)
+                {
+                    for (String component : components)
+                    {
+                        Descriptor d = Descriptor.fromFilename(location + File.separator + keyspace + File.separator + columnfamily + File.separator + component);
+                        assertEquals(d.ksname, keyspace);
+                        assertEquals(d.cfname, columnfamily);
+                    }
+
+                }
+
+            }
+        }
+
     }
 
 
