@@ -27,11 +27,13 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.base.Splitter;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.metadata.IMetadataSerializer;
 import org.apache.cassandra.io.sstable.metadata.MetadataSerializer;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.io.sstable.Component.separator;
@@ -279,17 +281,35 @@ public class Descriptor
         if (tableDir.getName().startsWith(Directories.SECONDARY_INDEX_NAME_SEPARATOR))
         {
             indexName = tableDir.getName();
-            tableDir = parentOf(name, tableDir);
         }
 
-        // Then it can be a backup or a snapshot
-        if (tableDir.getName().equals(Directories.BACKUPS_SUBDIR))
-            tableDir = tableDir.getParentFile();
-        else if (parentOf(name, tableDir).getName().equals(Directories.SNAPSHOT_SUBDIR))
-            tableDir = parentOf(name, parentOf(name, tableDir));
+        // ks/cf names
+        String table = null;
+        String keyspace = null;
 
-        String table = tableDir.getName().split("-")[0] + indexName;
-        String keyspace = parentOf(name, tableDir).getName();
+        //get data directories, sorted by path length (longest to shortest)
+        String[] locations = DatabaseDescriptor.getAllDataFileLocations();
+        String[] basePaths = new String[locations.length];
+        for(int i = 0; i < locations.length; i++)
+        {
+            basePaths[i] = FileUtils.getCanonicalPath(locations[i]);
+        }
+        Arrays.sort(basePaths, Comparator.comparingInt(String::length).reversed());
+
+        for(int i = 0; i < locations.length; i++)
+        {
+            //use longest match
+            String filePath = FileUtils.getCanonicalPath(file);
+            if (filePath.startsWith(basePaths[i]))
+            {
+                String path[] = filePath.split(basePaths[i],2)[1].split(File.separator);
+                keyspace = path[1];
+                table = path[2].split("-")[0] + indexName;
+                break;
+            }
+        }
+
+        assert keyspace != null && table != null: "Invalid file name " + name + " in " + directory;
 
         return Pair.create(new Descriptor(version, directory, keyspace, table, generation, format), component);
     }
