@@ -297,11 +297,6 @@ public class Descriptor
             if (cfDirectory.getName().startsWith(Directories.SECONDARY_INDEX_NAME_SEPARATOR))
             {
                 indexName = cfDirectory.getName();
-                cfDirectory = cfDirectory.getParentFile();
-            }
-            if (cfDirectory.getName().equals(Directories.BACKUPS_SUBDIR))
-            {
-                cfDirectory = cfDirectory.getParentFile();
             }
             //get data directories, sorted by path length (longest to shortest)
             String[] locations = DatabaseDescriptor.getAllDataFileLocations();
