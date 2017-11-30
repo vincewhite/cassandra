@@ -292,14 +292,14 @@ public class Descriptor
         String[] basePaths = new String[locations.length];
         for(int i = 0; i < locations.length; i++)
         {
-            basePaths[i] = FileUtils.getCanonicalPath(locations[i]);
+            basePaths[i] = new File(locations[i]).getAbsolutePath();
         }
         Arrays.sort(basePaths, Comparator.comparingInt(String::length).reversed());
 
         for(int i = 0; i < locations.length; i++)
         {
             //use longest match
-            String filePath = FileUtils.getCanonicalPath(file);
+            String filePath = tableDir.toString();
             if (filePath.startsWith(basePaths[i]))
             {
                 String path[] = filePath.split(basePaths[i],2)[1].split(File.separator);
