@@ -169,15 +169,12 @@ public class DescriptorTest
                 "system-schema_keyspaces-XXX-ka-1-Data.db",             "system-schema_keyspaces-k",
                 "system-schema_keyspace-ka-1-AAA-Data.db",  "system-schema-keyspace-ka-1-AAA-Data.db"
         };
-
-        File cfIdDir = new File(tempDataDir.getAbsolutePath() + File.separator + ksname + File.separator + cfname + '-' + cfId);
-
-
+        
         for (String name : names)
         {
             try
             {
-                Descriptor d = Descriptor.fromFilename(cfIdDir + File.separator + name);
+                Descriptor d = Descriptor.fromFilename(name);
                 Assert.fail(name);
             } catch (Throwable e) {
                 //good
