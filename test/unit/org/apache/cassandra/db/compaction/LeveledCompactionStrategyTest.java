@@ -367,4 +367,82 @@ public class LeveledCompactionStrategyTest
         assertTrue(unrepaired.manifest.getLevel(1).contains(sstable2));
         assertFalse(repaired.manifest.getLevel(1).contains(sstable2));
     }
+
+    @Test
+    public void testCompactionCandidateOrdering() throws Exception
+    {
+        // add some data
+        byte [] b = new byte[100 * 1024];
+        new Random().nextBytes(b);
+        ByteBuffer value = ByteBuffer.wrap(b);
+        int rows = 4;
+        int columns = 10;
+
+        // Just keep sstables in L0 for this test
+        cfs.disableAutoCompaction();
+        for (int r = 0; r < rows; r++)
+        {
+            UpdateBuilder update = UpdateBuilder.create(cfs.metadata, String.valueOf(r));
+            for (int c = 0; c < columns; c++)
+                update.newRow("column" + c).add("val", value);
+            update.applyUnsafe();
+            cfs.forceBlockingFlush();
+        }
+
+        LeveledCompactionStrategy strategy = (LeveledCompactionStrategy) (cfs.getCompactionStrategyManager()).getStrategies().get(1);
+
+
+        // get readers for level 0 sstables
+        Collection<SSTableReader> sstables = strategy.manifest.getLevel(0);
+        Collection<SSTableReader> sortedCandidates = strategy.manifest.ageSortedSSTables(sstables);
+
+        assertTrue(String.format("More than 1 sstable required for test, found: %d .", sortedCandidates.size()), sortedCandidates.size() > 1);
+        long lastMaxTimeStamp = Long.MIN_VALUE;
+
+        for (SSTableReader sstable : sortedCandidates)
+        {
+            assertTrue(String.format("SStables not sorted into oldest to newest by maxTimestamp. Current sstable: %d , last sstable: %d", sstable.getMaxTimestamp(), lastMaxTimeStamp),
+                       sstable.getMaxTimestamp() > lastMaxTimeStamp);
+            lastMaxTimeStamp = sstable.getMaxTimestamp();
+        }
+    }
+
+    @Test
+    public void testCompactionCandidateOrdering2() throws Exception
+    {
+        // add some data
+        byte [] b = new byte[100 * 1024];
+        new Random().nextBytes(b);
+        ByteBuffer value = ByteBuffer.wrap(b);
+        int rows = 4;
+        int columns = 10;
+
+        // Just keep sstables in L0 for this test
+        cfs.disableAutoCompaction();
+        for (int r = 0; r < rows; r++)
+        {
+            UpdateBuilder update = UpdateBuilder.create(cfs.metadata, String.valueOf(r));
+            for (int c = 0; c < columns; c++)
+                update.newRow("column" + c).add("val", value);
+            update.applyUnsafe();
+            cfs.forceBlockingFlush();
+        }
+
+        LeveledCompactionStrategy strategy = (LeveledCompactionStrategy) (cfs.getCompactionStrategyManager()).getStrategies().get(1);
+
+
+        // get readers for level 0 sstables
+        Collection<SSTableReader> sstables = strategy.manifest.getLevel(0);
+        List<SSTableReader> sortedCandidates = strategy.manifest.ageSortedSSTables(sstables);
+
+        assertTrue(String.format("More than 1 sstable required for test, found: %d .", sortedCandidates.size()), sortedCandidates.size() > 1);
+        long lastMaxTimeStamp = Long.MIN_VALUE;
+
+        for (SSTableReader sstable : sortedCandidates)
+        {
+            assertTrue(String.format("SStables not sorted into oldest to newest by maxTimestamp. Current sstable: %d , last sstable: %d", sstable.getMaxTimestamp(), lastMaxTimeStamp),
+                       sstable.getMaxTimestamp() > lastMaxTimeStamp);
+            lastMaxTimeStamp = sstable.getMaxTimestamp();
+        }
+    }
 }
