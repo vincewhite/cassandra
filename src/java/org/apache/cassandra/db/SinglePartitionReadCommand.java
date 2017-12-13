@@ -705,7 +705,7 @@ public class SinglePartitionReadCommand extends ReadCommand
              * In other words, iterating in maxTimestamp order allow to do our mostRecentPartitionTombstone elimination
              * in one pass, and minimize the number of sstables for which we read a partition tombstone.
              */
-            Collections.sort(view.sstables, SSTableReader.maxTimestampComparator);
+            Collections.sort(view.sstables, SSTableReader.maxTimestampComparatorDescending);
             List<SSTableReader> skippedSSTables = null;
             long mostRecentPartitionTombstone = Long.MIN_VALUE;
             long minTimestamp = Long.MAX_VALUE;
@@ -867,7 +867,7 @@ public class SinglePartitionReadCommand extends ReadCommand
         }
 
         /* add the SSTables on disk */
-        Collections.sort(view.sstables, SSTableReader.maxTimestampComparator);
+        Collections.sort(view.sstables, SSTableReader.maxTimestampComparatorDescending);
         boolean onlyUnrepaired = true;
         // read sorted sstables
         SSTableReadMetricsCollector metricsCollector = new SSTableReadMetricsCollector();
