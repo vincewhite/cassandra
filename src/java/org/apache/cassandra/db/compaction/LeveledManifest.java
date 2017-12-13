@@ -703,7 +703,7 @@ public class LeveledManifest
     private List<SSTableReader> ageSortedSSTables(Collection<SSTableReader> candidates)
     {
         List<SSTableReader> ageSortedCandidates = new ArrayList<>(candidates);
-        Collections.sort(ageSortedCandidates, SSTableReader.maxTimestampComparator);
+        Collections.sort(ageSortedCandidates, SSTableReader.maxTimestampComparatorAscending);
         return ageSortedCandidates;
     }
 
