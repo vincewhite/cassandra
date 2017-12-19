@@ -41,7 +41,7 @@ import org.apache.cassandra.utils.memory.AbstractAllocator;
 public abstract class Cell extends ColumnData
 {
     public static final int NO_TTL = 0;
-    public static final int NO_DELETION_TIME = Integer.MAX_VALUE;
+    public static final long NO_DELETION_TIME = Long.MAX_VALUE;
 
     public final static Comparator<Cell> comparator = (c1, c2) ->
     {
@@ -94,7 +94,7 @@ public abstract class Cell extends ColumnData
      * @return the cell local deletion time, or {@code NO_DELETION_TIME} if the cell is neither
      * a tombstone nor an expiring one.
      */
-    public abstract int localDeletionTime();
+    public abstract long localDeletionTime();
 
     /**
      * Whether the cell is a tombstone or not.
@@ -222,7 +222,7 @@ public abstract class Cell extends ColumnData
 
             long timestamp = useRowTimestamp ? rowLiveness.timestamp() : header.readTimestamp(in);
 
-            int localDeletionTime = useRowTTL
+            long localDeletionTime = useRowTTL
                                     ? rowLiveness.localExpirationTime()
                                     : (isDeleted || isExpiring ? header.readLocalDeletionTime(in) : NO_DELETION_TIME);
 

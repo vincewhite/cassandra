@@ -70,7 +70,7 @@ public class SinglePartitionReadCommand extends ReadCommand
     private final DecoratedKey partitionKey;
     private final ClusteringIndexFilter clusteringIndexFilter;
 
-    private int oldestUnrepairedTombstone = Integer.MAX_VALUE;
+    private long oldestUnrepairedTombstone = Integer.MAX_VALUE;
 
     @VisibleForTesting
     protected SinglePartitionReadCommand(boolean isDigest,
@@ -584,7 +584,7 @@ public class SinglePartitionReadCommand extends ReadCommand
     }
 
     @Override
-    protected int oldestUnrepairedTombstone()
+    protected long oldestUnrepairedTombstone()
     {
         return oldestUnrepairedTombstone;
     }

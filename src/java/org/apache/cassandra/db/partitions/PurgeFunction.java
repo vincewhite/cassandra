@@ -32,7 +32,7 @@ public abstract class PurgeFunction extends Transformation<UnfilteredRowIterator
     private final boolean enforceStrictLiveness;
     private boolean isReverseOrder;
 
-    public PurgeFunction(int nowInSec, int gcBefore, int oldestUnrepairedTombstone, boolean onlyPurgeRepairedTombstones,
+    public PurgeFunction(int nowInSec, int gcBefore, long oldestUnrepairedTombstone, boolean onlyPurgeRepairedTombstones,
                          boolean enforceStrictLiveness)
     {
         this.nowInSec = nowInSec;

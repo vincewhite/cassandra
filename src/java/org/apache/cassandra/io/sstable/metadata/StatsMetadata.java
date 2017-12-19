@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.commons.lang3.builder.EqualsBuilder;
@@ -37,6 +38,8 @@ import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.streamhist.TombstoneHistogram;
 import org.apache.cassandra.utils.UUIDSerializer;
 
+import static java.lang.Math.min;
+
 /**
  * SSTable metadata that always stay on heap.
  */
@@ -50,8 +53,8 @@ public class StatsMetadata extends MetadataComponent
     public final IntervalSet<CommitLogPosition> commitLogIntervals;
     public final long minTimestamp;
     public final long maxTimestamp;
-    public final int minLocalDeletionTime;
-    public final int maxLocalDeletionTime;
+    public final long minLocalDeletionTime;
+    public final long maxLocalDeletionTime;
     public final int minTTL;
     public final int maxTTL;
     public final double compressionRatio;
@@ -70,8 +73,8 @@ public class StatsMetadata extends MetadataComponent
                          IntervalSet<CommitLogPosition> commitLogIntervals,
                          long minTimestamp,
                          long maxTimestamp,
-                         int minLocalDeletionTime,
-                         int maxLocalDeletionTime,
+                         long minLocalDeletionTime,
+                         long maxLocalDeletionTime,
                          int minTTL,
                          int maxTTL,
                          double compressionRatio,
@@ -268,8 +271,24 @@ public class StatsMetadata extends MetadataComponent
             size += EstimatedHistogram.serializer.serializedSize(component.estimatedPartitionSize);
             size += EstimatedHistogram.serializer.serializedSize(component.estimatedColumnCount);
             size += CommitLogPosition.serializer.serializedSize(component.commitLogIntervals.upperBound().orElse(CommitLogPosition.NONE));
-            size += 8 + 8 + 4 + 4 + 4 + 4 + 8 + 8; // mix/max timestamp(long), min/maxLocalDeletionTime(int), min/max TTL, compressionRatio(double), repairedAt (long)
-            size += TombstoneHistogram.serializer.serializedSize(component.estimatedTombstoneDropTime);
+            size += 8 + 8; // mix/max timestamp(long)
+            if (version.hasLongLocalDeletionTime())
+            {
+                size += 8 + 8;   //min/maxLocalDeletionTime(long)
+            }
+            else
+            {
+                size += 4 + 4;   //min/maxLocalDeletionTime(int)
+            }
+            size +=  4 + 4 + 8 + 8;// min/max TTL, compressionRatio(double), repairedAt (long)
+            if (version.hasLongLocalDeletionTime())
+            {
+                size += TombstoneHistogram.serializer.serializedSize(component.estimatedTombstoneDropTime);
+            }
+            else
+            {
+                size += TombstoneHistogram.legacySerializer.serializedSize(component.estimatedTombstoneDropTime);
+            }
             size += TypeSizes.sizeof(component.sstableLevel);
             // min column names
             size += 4;
@@ -302,12 +321,29 @@ public class StatsMetadata extends MetadataComponent
             CommitLogPosition.serializer.serialize(component.commitLogIntervals.upperBound().orElse(CommitLogPosition.NONE), out);
             out.writeLong(component.minTimestamp);
             out.writeLong(component.maxTimestamp);
-            out.writeInt(component.minLocalDeletionTime);
-            out.writeInt(component.maxLocalDeletionTime);
+            if (version.hasLongLocalDeletionTime())
+            {
+                out.writeLong(component.minLocalDeletionTime);
+                out.writeLong(component.maxLocalDeletionTime);
+            }
+            else
+            {
+                int mld = component.minLocalDeletionTime == Long.MAX_VALUE ? Integer.MAX_VALUE : (int)min(component.minLocalDeletionTime, (long)Integer.MAX_VALUE - 1);
+                out.writeInt(mld);
+                mld = component.maxLocalDeletionTime == Long.MAX_VALUE ? Integer.MAX_VALUE : (int)min(component.maxLocalDeletionTime, (long)Integer.MAX_VALUE - 1);
+                out.writeInt(mld);
+            }
             out.writeInt(component.minTTL);
             out.writeInt(component.maxTTL);
             out.writeDouble(component.compressionRatio);
-            TombstoneHistogram.serializer.serialize(component.estimatedTombstoneDropTime, out);
+            if (version.hasLongLocalDeletionTime())
+            {
+                TombstoneHistogram.serializer.serialize(component.estimatedTombstoneDropTime, out);
+            }
+            else
+            {
+                TombstoneHistogram.legacySerializer.serialize(component.estimatedTombstoneDropTime, out);
+            }
             out.writeInt(component.sstableLevel);
             out.writeLong(component.repairedAt);
             out.writeInt(component.minClusteringValues.size());
@@ -348,12 +384,35 @@ public class StatsMetadata extends MetadataComponent
             commitLogUpperBound = CommitLogPosition.serializer.deserialize(in);
             long minTimestamp = in.readLong();
             long maxTimestamp = in.readLong();
-            int minLocalDeletionTime = in.readInt();
-            int maxLocalDeletionTime = in.readInt();
+            long minLocalDeletionTime;
+            long maxLocalDeletionTime;
+            if (version.hasLongLocalDeletionTime())
+            {
+                minLocalDeletionTime = in.readLong();
+                maxLocalDeletionTime = in.readLong();
+            }
+            else
+            {
+                minLocalDeletionTime = in.readInt();
+                if (minLocalDeletionTime == Integer.MAX_VALUE)
+                    minLocalDeletionTime = Cell.NO_DELETION_TIME;
+
+                maxLocalDeletionTime = in.readInt();
+                if (maxLocalDeletionTime == Integer.MAX_VALUE)
+                    maxLocalDeletionTime = Cell.NO_DELETION_TIME;
+            }
             int minTTL = in.readInt();
             int maxTTL = in.readInt();
             double compressionRatio = in.readDouble();
-            TombstoneHistogram tombstoneHistogram = TombstoneHistogram.serializer.deserialize(in);
+            TombstoneHistogram tombstoneHistogram;
+            if (version.hasLongLocalDeletionTime())
+            {
+                tombstoneHistogram = TombstoneHistogram.serializer.deserialize(in);
+            }
+            else
+            {
+                tombstoneHistogram = TombstoneHistogram.legacySerializer.deserialize(in);
+            }
             int sstableLevel = in.readInt();
             long repairedAt = in.readLong();
 

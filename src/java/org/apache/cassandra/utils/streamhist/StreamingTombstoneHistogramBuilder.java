@@ -86,7 +86,7 @@ public class StreamingTombstoneHistogramBuilder
      *
      * @param p
      */
-    public void update(int p)
+    public void update(long p)
     {
         update(p, 1);
     }
@@ -97,7 +97,7 @@ public class StreamingTombstoneHistogramBuilder
      * @param p
      * @param m
      */
-    public void update(int p, int m)
+    public void update(long p, int m)
     {
         p = roundKey(p, roundSeconds);
 
@@ -125,13 +125,13 @@ public class StreamingTombstoneHistogramBuilder
         spool.clear();
     }
 
-    private void flushValue(int key, int spoolValue)
+    private void flushValue(long key, int spoolValue)
     {
         DataHolder.NeighboursAndResult addResult = bin.addValue(key, spoolValue);
         if (addResult.result == INSERTED)
         {
-            final int prevPoint = addResult.prevPoint;
-            final int nextPoint = addResult.nextPoint;
+            final long prevPoint = addResult.prevPoint;
+            final long nextPoint = addResult.nextPoint;
             if (prevPoint != -1 && nextPoint != -1)
                 distances.remove(prevPoint, nextPoint);
             if (prevPoint != -1)
@@ -149,17 +149,17 @@ public class StreamingTombstoneHistogramBuilder
     private void mergeBin()
     {
         // find points point1, point2 which have smallest difference
-        final int[] smallestDifference = distances.getFirstAndRemove();
+        final long[] smallestDifference = distances.getFirstAndRemove();
 
-        final int point1 = smallestDifference[0];
-        final int point2 = smallestDifference[1];
+        final long point1 = smallestDifference[0];
+        final long point2 = smallestDifference[1];
 
         // merge those two
         DataHolder.MergeResult mergeResult = bin.merge(point1, point2);
 
-        final int nextPoint = mergeResult.nextPoint;
-        final int prevPoint = mergeResult.prevPoint;
-        final int newPoint = mergeResult.newPoint;
+        final long nextPoint = mergeResult.nextPoint;
+        final long prevPoint = mergeResult.prevPoint;
+        final long newPoint = mergeResult.newPoint;
 
         if (nextPoint != -1)
         {
@@ -188,47 +188,84 @@ public class StreamingTombstoneHistogramBuilder
     private static class DistanceHolder
     {
         private static final long EMPTY = Long.MAX_VALUE;
-        private final long[] data;
+        //split so we can still use the current binary seraches
+        private final long[] distances;
+        private final long[] previous;
 
         DistanceHolder(int maxCapacity)
         {
-            data = new long[maxCapacity];
-            Arrays.fill(data, EMPTY);
+            distances = new long[maxCapacity];
+            previous = new long[maxCapacity];
+            Arrays.fill(distances, EMPTY);
+            Arrays.fill(previous, EMPTY);
         }
 
-        void add(int prev, int next)
+        void add(long prev, long next)
         {
-            long key = getKey(prev, next);
-            int index = Arrays.binarySearch(data, key);
-
-            assert (index < 0) : "Element already exists";
-            assert (data[data.length - 1] == EMPTY) : "No more space in array";
-
-            index = -index - 1;
-            System.arraycopy(data, index, data, index + 1, data.length - index - 1);
-            data[index] = key;
-        }
-
-        void remove(int prev, int next)
-        {
-            long key = getKey(prev, next);
-            int index = Arrays.binarySearch(data, key);
+            long distance = next - prev;
+            int index = Arrays.binarySearch(distances, distance);
             if (index >= 0)
             {
-                if (index < data.length)
-                    System.arraycopy(data, index + 1, data, index, data.length - index - 1);
-                data[data.length - 1] = EMPTY;
+                for (; distances[index] == distance; index++)
+                {
+                    assert (previous[index] != prev) : "Element already exists";
+                    if (previous[index] > prev)
+                    {
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                index = -index - 1;
+            }
+
+            assert (distances[distances.length - 1] == EMPTY) : "No more space in array";
+
+
+            System.arraycopy(distances, index, distances, index + 1, distances.length - index - 1);
+            System.arraycopy(previous, index, previous, index + 1, previous.length - index - 1);
+            previous[index] = prev;
+            distances[index] = distance;
+        }
+
+        void remove(long prev, long next)
+        {
+            long distance = next - prev;
+            int index = Arrays.binarySearch(distances, distance);
+            int direction = previous[index] <= prev ? 1 : -1 ;
+            boolean found = false;
+            if (index >= 0)
+            {
+                for (; distances[index] == distance; index += direction)
+                {
+                    if (previous[index] == prev)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+                assert found == true : "Element not found";
+                if (index < distances.length)
+                {
+                    System.arraycopy(distances, index + 1, distances, index, distances.length - index - 1);
+                    System.arraycopy(previous, index + 1, previous, index, previous.length - index - 1);
+                }
+                distances[distances.length - 1] = EMPTY;
+                previous[previous.length - 1] = EMPTY;
             }
         }
 
-        int[] getFirstAndRemove()
+        long[] getFirstAndRemove()
         {
-            if (data[0] == EMPTY)
+            if (distances[0] == EMPTY)
                 return null;
 
-            int[] result = unwrapKey(data[0]);
-            System.arraycopy(data, 1, data, 0, data.length - 1);
-            data[data.length - 1] = EMPTY;
+            long[] result  = {previous[0], previous[0] + distances[0]};
+            System.arraycopy(distances, 1, distances, 0, distances.length - 1);
+            System.arraycopy(previous, 1, previous, 0, previous.length - 1);
+            previous[previous.length - 1] = EMPTY;
+            distances[distances.length - 1] = EMPTY;
             return result;
         }
 
@@ -247,122 +284,135 @@ public class StreamingTombstoneHistogramBuilder
 
         public String toString()
         {
-            return Arrays.stream(data).filter(x -> x != EMPTY).boxed().map(this::unwrapKey).map(Arrays::toString).collect(Collectors.joining());
+            //return Arrays.stream(data).filter(x -> x != EMPTY).boxed().map(this::unwrapKey).map(Arrays::toString).collect(Collectors.joining());
+            return super.toString();
         }
     }
 
     static class DataHolder
     {
         private static final long EMPTY = Long.MAX_VALUE;
-        private final long[] data;
+        private final long[] points;
+        private final int[] values;
         private final int roundSeconds;
+
+        static class pair
+        {
+            private long point;
+            private int value;
+
+            pair(long point, int value)
+            {
+                this.point = point;
+                this.value = value;
+            }
+        }
 
         DataHolder(int maxCapacity, int roundSeconds)
         {
-            data = new long[maxCapacity];
-            Arrays.fill(data, EMPTY);
+            points = new long[maxCapacity];
+            values = new int[maxCapacity];
+            Arrays.fill(points, EMPTY);
+            Arrays.fill(values, 0);
             this.roundSeconds = roundSeconds;
         }
 
         DataHolder(DataHolder holder)
         {
-            data = Arrays.copyOf(holder.data, holder.data.length);
+            points = Arrays.copyOf(holder.points, holder.points.length);
+            values = Arrays.copyOf(holder.values, holder.values.length);
             roundSeconds = holder.roundSeconds;
         }
 
-        NeighboursAndResult addValue(int point, int delta)
+        NeighboursAndResult addValue(long point, int delta)
         {
-            long key = wrap(point, 0);
-            int index = Arrays.binarySearch(data, key);
+            int index = Arrays.binarySearch(points, point);
             AddResult addResult;
             if (index < 0)
             {
                 index = -index - 1;
-                assert (index < data.length) : "No more space in array";
-
-                if (unwrapPoint(data[index]) != point) //ok, someone else at this point, let's shift array and insert
+                assert (index < points.length) : "No more space in array";
+                //TODO:remove this check
+                if (points[index] != point) //ok, someone else at this point, let's shift array and insert
                 {
-                    assert (data[data.length - 1] == EMPTY) : "No more space in array";
+                    assert (points[points.length - 1] == EMPTY) : "No more space in array";
 
-                    System.arraycopy(data, index, data, index + 1, data.length - index - 1);
+                    System.arraycopy(points, index, points, index + 1, points.length - index - 1);
+                    System.arraycopy(values, index, values, index + 1, values.length - index - 1);
 
-                    data[index] = wrap(point, delta);
+                    points[index] = point;
+                    values[index] = delta;
                     addResult = INSERTED;
                 }
                 else
                 {
-                    data[index] += delta;
+                    values[index] += delta;
                     addResult = ACCUMULATED;
                 }
             }
             else
             {
-                data[index] += delta;
+                values[index] += delta;
                 addResult = ACCUMULATED;
             }
 
             return new NeighboursAndResult(getPrevPoint(index), getNextPoint(index), addResult);
         }
 
-        public MergeResult merge(int point1, int point2)
+        public MergeResult merge(long point1, long point2)
         {
-            long key = wrap(point1, 0);
-            int index = Arrays.binarySearch(data, key);
+            int index = Arrays.binarySearch(points, point1);
             if (index < 0)
             {
                 index = -index - 1;
-                assert (index < data.length) : "Not found in array";
-                assert (unwrapPoint(data[index]) == point1) : "Not found in array";
+                assert (index < points.length) : "Not found in array";
+                //remove assert
+                assert (points[index] == point1) : "Not found in array";
             }
 
-            final int prevPoint = getPrevPoint(index);
-            final int nextPoint = getNextPoint(index + 1);
+            final long prevPoint = getPrevPoint(index);
+            final long nextPoint = getNextPoint(index + 1);
 
-            int value1 = unwrapValue(data[index]);
-            int value2 = unwrapValue(data[index + 1]);
+            int value1 = values[index];
+            int value2 = values[index + 1];
 
-            assert (unwrapPoint(data[index + 1]) == point2) : "point2 should follow point1";
+            assert (points[index + 1] == point2) : "point2 should follow point1";
 
             int sum = value1 + value2;
 
             //let's evaluate in long values to handle overflow in multiplication
-            int newPoint = (int) (((long) point1 * value1 + (long) point2 * value2) / (value1 + value2));
+            long newPoint = ((point1 * value1 + point2 * value2) / (value1 + value2));
             newPoint = roundKey(newPoint, roundSeconds);
-            data[index] = wrap(newPoint, sum);
+            points[index] = newPoint;
+            values[index] = sum;
 
-            System.arraycopy(data, index + 2, data, index + 1, data.length - index - 2);
-            data[data.length - 1] = EMPTY;
-
+            System.arraycopy(points, index + 2, points, index + 1, points.length - index - 2);
+            System.arraycopy(values, index + 2, values, index + 1, values.length - index - 2);
+            points[points.length - 1] = EMPTY;
+            values[values.length - 1] = 0;
             return new MergeResult(prevPoint, newPoint, nextPoint);
         }
 
-        private int getPrevPoint(int index)
+        private long getPrevPoint(int index)
         {
             if (index > 0)
-                if (data[index - 1] != EMPTY)
-                    return (int) (data[index - 1] >> 32);
+                if (points[index - 1] != EMPTY)
+                    return points[index - 1];
                 else
                     return -1;
             else
                 return -1;
         }
 
-        private int getNextPoint(int index)
+        private long getNextPoint(int index)
         {
-            if (index < data.length - 1)
-                if (data[index + 1] != EMPTY)
-                    return (int) (data[index + 1] >> 32);
+            if (index < points.length - 1)
+                if (points[index + 1] != EMPTY)
+                    return points[index + 1];
                 else
                     return -1;
             else
                 return -1;
-        }
-
-        private int[] unwrap(long key)
-        {
-            final int point = unwrapPoint(key);
-            final int value = unwrapValue(key);
-            return new int[]{ point, value };
         }
 
         private int unwrapPoint(long key)
@@ -375,32 +425,33 @@ public class StreamingTombstoneHistogramBuilder
             return (int) (key & 0xFF_FF_FF_FFL);
         }
 
-        private long wrap(int point, int value)
+        private long wrap(long point, int value)
         {
-            return (((long) point) << 32) | value;
+            return (point << 32) | value;
         }
 
 
         public String toString()
         {
-            return Arrays.stream(data).filter(x -> x != EMPTY).boxed().map(this::unwrap).map(Arrays::toString).collect(Collectors.joining());
+            return super.toString();
+            //return Arrays.stream(data).filter(x -> x != EMPTY).boxed().map(this::unwrap).map(Arrays::toString).collect(Collectors.joining());
         }
 
         public boolean isFull()
         {
-            return data[data.length - 1] != EMPTY;
+            return points[points.length - 1] != EMPTY;
         }
 
         public <E extends Exception> void forEach(HistogramDataConsumer<E> histogramDataConsumer) throws E
         {
-            for (long datum : data)
+            for (int i = 0; i < points.length; i++)
             {
-                if (datum == EMPTY)
+                if (points[i] == EMPTY)
                 {
                     break;
                 }
 
-                histogramDataConsumer.consume(unwrapPoint(datum), unwrapValue(datum));
+                histogramDataConsumer.consume(points[i], values[i]);
             }
         }
 
@@ -415,15 +466,14 @@ public class StreamingTombstoneHistogramBuilder
         {
             double sum = 0;
 
-            for (int i = 0; i < data.length; i++)
+            for (int i = 0; i < points.length; i++)
             {
-                long pointAndValue = data[i];
-                if (pointAndValue == EMPTY)
+                final long point = points[i];
+                if (point == EMPTY)
                 {
                     break;
                 }
-                final int point = unwrapPoint(pointAndValue);
-                final int value = unwrapValue(pointAndValue);
+                final int value = values[i];
                 if (point > b)
                 {
                     if (i == 0)
@@ -432,8 +482,8 @@ public class StreamingTombstoneHistogramBuilder
                     }
                     else
                     {
-                        final int prevPoint = unwrapPoint(data[i - 1]);
-                        final int prevValue = unwrapValue(data[i - 1]);
+                        final long prevPoint = points[i - 1];
+                        final int prevValue = values[i - 1];
                         double weight = (b - prevPoint) / (double) (point - prevPoint);
                         double mb = prevValue + (value - prevValue) * weight;
                         sum -= prevValue;
@@ -452,11 +502,11 @@ public class StreamingTombstoneHistogramBuilder
 
         static class MergeResult
         {
-            int prevPoint;
-            int newPoint;
-            int nextPoint;
+            long prevPoint;
+            long newPoint;
+            long nextPoint;
 
-            MergeResult(int prevPoint, int newPoint, int nextPoint)
+            MergeResult(long prevPoint, long newPoint, long nextPoint)
             {
                 this.prevPoint = prevPoint;
                 this.newPoint = newPoint;
@@ -466,11 +516,11 @@ public class StreamingTombstoneHistogramBuilder
 
         static class NeighboursAndResult
         {
-            int prevPoint;
-            int nextPoint;
+            long prevPoint;
+            long nextPoint;
             AddResult result;
 
-            NeighboursAndResult(int prevPoint, int nextPoint, AddResult result)
+            NeighboursAndResult(long prevPoint, long nextPoint, AddResult result)
             {
                 this.prevPoint = prevPoint;
                 this.nextPoint = nextPoint;
@@ -481,7 +531,8 @@ public class StreamingTombstoneHistogramBuilder
         @Override
         public int hashCode()
         {
-            return Arrays.hashCode(data);
+            //TODO: check usage
+            return Arrays.hashCode(points);
         }
 
         @Override
@@ -497,7 +548,7 @@ public class StreamingTombstoneHistogramBuilder
 
             for (int i=0; i<size(); i++)
             {
-                if (data[i]!=other.data[i])
+                if (points[i]!=other.points[i] && values[i]!=other.values[i])
                 {
                     return false;
                 }
@@ -515,7 +566,8 @@ public class StreamingTombstoneHistogramBuilder
     static class Spool
     {
         // odd elements - points, even elements - values
-        final int[] map;
+        final long[] points;
+        final int[] values;
         final int capacity;
         int size;
 
@@ -524,24 +576,27 @@ public class StreamingTombstoneHistogramBuilder
             this.capacity = capacity;
             if (capacity == 0)
             {
-                map = new int[0];
+                points = new long[0];
+                values = new int[0];
             }
             else
             {
                 assert IntMath.isPowerOfTwo(capacity) : "should be power of two";
                 // x2 because we want to save points and values in consecutive cells and x2 because we want reprobing less that two when _capacity_ values will be written
-                map = new int[capacity * 2 * 2];
+                points = new long[capacity * 2];
+                values = new int[capacity * 2];
                 clear();
             }
         }
 
         void clear()
         {
-            Arrays.fill(map, -1);
+            Arrays.fill(points, -1);
+            Arrays.fill(values, 0);
             size = 0;
         }
 
-        boolean tryAddOrAccumulate(int point, int delta)
+        boolean tryAddOrAccumulate(long point, int delta)
         {
             if (size > capacity)
             {
@@ -559,45 +614,45 @@ public class StreamingTombstoneHistogramBuilder
             return false;
         }
 
-        private int hash(int i)
+        private int hash(long i)
         {
             long largePrime = 948701839L;
-            return (int) (i * largePrime);
+            return (int)(i * largePrime);
         }
 
         <E extends Exception> void forEach(HistogramDataConsumer<E> consumer) throws E
         {
-            for (int i = 0; i < map.length; i += 2)
+            for (int i = 0; i < points.length; i++)
             {
-                if (map[i] != -1)
+                if (points[i] != -1)
                 {
-                    consumer.consume(map[i], map[i + 1]);
+                    consumer.consume(points[i], values[i]);
                 }
             }
         }
 
-        private boolean tryCell(int cell, int point, int delta)
+        private boolean tryCell(int cell, long point, int delta)
         {
-            cell = cell % map.length;
-            if (map[cell] == -1)
+            cell = cell % points.length;
+            if (points[cell] == -1)
             {
-                map[cell] = point;
-                map[cell + 1] = delta;
+                points[cell] = point;
+                values[cell] = delta;
                 size++;
                 return true;
             }
-            if (map[cell] == point)
+            if (points[cell] == point)
             {
-                map[cell + 1] += delta;
+                values[cell] += delta;
                 return true;
             }
             return false;
         }
     }
 
-    private static int roundKey(int p, int roundSeconds)
+    private static long roundKey(long p, int roundSeconds)
     {
-        int d = p % roundSeconds;
+        long d = p % roundSeconds;
         if (d > 0)
             return p + (roundSeconds - d);
         else

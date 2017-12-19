@@ -357,7 +357,7 @@ public class Memtable implements Comparable<Memtable>
                    ? partitions.tailMap(keyRange.left, includeStart)
                    : partitions.subMap(keyRange.left, includeStart, keyRange.right, includeStop);
 
-        int minLocalDeletionTime = Integer.MAX_VALUE;
+        long minLocalDeletionTime = Long.MAX_VALUE;
 
         // avoid iterating over the memtable if we purge all tombstones
         if (cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones())
@@ -368,9 +368,9 @@ public class Memtable implements Comparable<Memtable>
         return new MemtableUnfilteredPartitionIterator(cfs, iter, minLocalDeletionTime, columnFilter, dataRange);
     }
 
-    private int findMinLocalDeletionTime(Iterator<Map.Entry<PartitionPosition, AtomicBTreePartition>> iterator)
+    private long findMinLocalDeletionTime(Iterator<Map.Entry<PartitionPosition, AtomicBTreePartition>> iterator)
     {
-        int minLocalDeletionTime = Integer.MAX_VALUE;
+        long minLocalDeletionTime = Long.MAX_VALUE;
         while (iterator.hasNext())
         {
             Map.Entry<PartitionPosition, AtomicBTreePartition> entry = iterator.next();
@@ -542,11 +542,11 @@ public class Memtable implements Comparable<Memtable>
     {
         private final ColumnFamilyStore cfs;
         private final Iterator<Map.Entry<PartitionPosition, AtomicBTreePartition>> iter;
-        private final int minLocalDeletionTime;
+        private final long minLocalDeletionTime;
         private final ColumnFilter columnFilter;
         private final DataRange dataRange;
 
-        public MemtableUnfilteredPartitionIterator(ColumnFamilyStore cfs, Iterator<Map.Entry<PartitionPosition, AtomicBTreePartition>> iter, int minLocalDeletionTime, ColumnFilter columnFilter, DataRange dataRange)
+        public MemtableUnfilteredPartitionIterator(ColumnFamilyStore cfs, Iterator<Map.Entry<PartitionPosition, AtomicBTreePartition>> iter, long minLocalDeletionTime, ColumnFilter columnFilter, DataRange dataRange)
         {
             this.cfs = cfs;
             this.iter = iter;
@@ -555,7 +555,7 @@ public class Memtable implements Comparable<Memtable>
             this.dataRange = dataRange;
         }
 
-        public int getMinLocalDeletionTime()
+        public long getMinLocalDeletionTime()
         {
             return minLocalDeletionTime;
         }

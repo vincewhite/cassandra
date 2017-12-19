@@ -67,11 +67,11 @@ public class EncodingStats
     public static final Serializer serializer = new Serializer();
 
     public final long minTimestamp;
-    public final int minLocalDeletionTime;
+    public final long minLocalDeletionTime;
     public final int minTTL;
 
     public EncodingStats(long minTimestamp,
-                         int minLocalDeletionTime,
+                         long minLocalDeletionTime,
                          int minTTL)
     {
         // Note that the exact value of those don't impact correctness, just the efficiency of the encoding. So when we
@@ -96,7 +96,7 @@ public class EncodingStats
                           ? that.minTimestamp
                           : (that.minTimestamp == TIMESTAMP_EPOCH ? this.minTimestamp : Math.min(this.minTimestamp, that.minTimestamp));
 
-        int minDelTime = this.minLocalDeletionTime == DELETION_TIME_EPOCH
+        long minDelTime = this.minLocalDeletionTime == DELETION_TIME_EPOCH
                        ? that.minLocalDeletionTime
                        : (that.minLocalDeletionTime == DELETION_TIME_EPOCH ? this.minLocalDeletionTime : Math.min(this.minLocalDeletionTime, that.minLocalDeletionTime));
 
@@ -138,7 +138,7 @@ public class EncodingStats
         private long minTimestamp = Long.MAX_VALUE;
 
         private boolean isDelTimeSet;
-        private int minDeletionTime = Integer.MAX_VALUE;
+        private long minDeletionTime = Long.MAX_VALUE;
 
         private boolean isTTLSet;
         private int minTTL = Integer.MAX_VALUE;
@@ -186,7 +186,7 @@ public class EncodingStats
             minTimestamp = Math.min(minTimestamp, timestamp);
         }
 
-        public void updateLocalDeletionTime(int deletionTime)
+        public void updateLocalDeletionTime(long deletionTime)
         {
             isDelTimeSet = true;
             minDeletionTime = Math.min(minDeletionTime, deletionTime);
@@ -245,7 +245,7 @@ public class EncodingStats
         public EncodingStats deserialize(DataInputPlus in) throws IOException
         {
             long minTimestamp = in.readUnsignedVInt() + TIMESTAMP_EPOCH;
-            int minLocalDeletionTime = (int)in.readUnsignedVInt() + DELETION_TIME_EPOCH;
+            long minLocalDeletionTime = in.readUnsignedVInt() + DELETION_TIME_EPOCH;
             int minTTL = (int)in.readUnsignedVInt() + TTL_EPOCH;
             return new EncodingStats(minTimestamp, minLocalDeletionTime, minTTL);
         }

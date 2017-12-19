@@ -52,7 +52,7 @@ public class MutableDeletionInfo implements DeletionInfo
      * @param localDeletionTime what time the deletion write was applied locally (for purposes of
      *                          purging the tombstone after gc_grace_seconds).
      */
-    public MutableDeletionInfo(long markedForDeleteAt, int localDeletionTime)
+    public MutableDeletionInfo(long markedForDeleteAt, long localDeletionTime)
     {
         // Pre-1.1 node may return MIN_VALUE for non-deleted container, but the new default is MAX_VALUE
         // (see CASSANDRA-3872)

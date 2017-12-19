@@ -58,7 +58,7 @@ public class PartitionRangeReadCommand extends ReadCommand
     protected static final SelectionDeserializer selectionDeserializer = new Deserializer();
 
     private final DataRange dataRange;
-    private int oldestUnrepairedTombstone = Integer.MAX_VALUE;
+    private long oldestUnrepairedTombstone = Integer.MAX_VALUE;
 
     private PartitionRangeReadCommand(boolean isDigest,
                                      int digestVersion,
@@ -315,7 +315,7 @@ public class PartitionRangeReadCommand extends ReadCommand
     }
 
     @Override
-    protected int oldestUnrepairedTombstone()
+    protected long oldestUnrepairedTombstone()
     {
         return oldestUnrepairedTombstone;
     }

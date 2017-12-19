@@ -36,7 +36,7 @@ public class StreamingTombstoneHistogramBuilderTest
     public void testFunction() throws Exception
     {
         StreamingTombstoneHistogramBuilder builder = new StreamingTombstoneHistogramBuilder(5, 0, 1);
-        int[] samples = new int[]{ 23, 19, 10, 16, 36, 2, 9, 32, 30, 45 };
+        long[] samples = new long[]{ 23, 19, 10, 16, 36, 2, 9, 32, 30, 45 };
 
         // add 7 points to histogram of 5 bins
         for (int i = 0; i < 7; i++)
@@ -112,10 +112,10 @@ public class StreamingTombstoneHistogramBuilderTest
         builder.update(2);
         builder.update(2);
         TombstoneHistogram hist = builder.build();
-        Map<Integer, Integer> asMap = asMap(hist);
+        Map<Long, Integer> asMap = asMap(hist);
 
         assertEquals(1, asMap.size());
-        assertEquals(3, asMap.get(2).intValue());
+        assertEquals(3, asMap.get(2l).intValue());
 
         //Make sure it's working with Serde
         DataOutputBuffer out = new DataOutputBuffer();
@@ -126,7 +126,7 @@ public class StreamingTombstoneHistogramBuilderTest
 
         asMap = asMap(deserialized);
         assertEquals(1, deserialized.size());
-        assertEquals(3, asMap.get(2).intValue());
+        assertEquals(3, asMap.get(2l).intValue());
     }
 
     @Test
@@ -156,8 +156,8 @@ public class StreamingTombstoneHistogramBuilderTest
             builder.update(samples[i]);
         TombstoneHistogram hist = builder.build();
         assertEquals(hist.size(), 5);
-        assertEquals(asMap(hist).get(60).intValue(), 2);
-        assertEquals(asMap(hist).get(120).intValue(), 1);
+        assertEquals(asMap(hist).get(60l).intValue(), 2);
+        assertEquals(asMap(hist).get(120l).intValue(), 1);
     }
 
     @Test
@@ -167,9 +167,9 @@ public class StreamingTombstoneHistogramBuilderTest
         IntStream.range(Integer.MAX_VALUE - 30, Integer.MAX_VALUE).forEach(builder::update);
     }
 
-    private Map<Integer, Integer> asMap(TombstoneHistogram histogram)
+    private Map<Long, Integer> asMap(TombstoneHistogram histogram)
     {
-        Map<Integer, Integer> result = new HashMap<>();
+        Map<Long, Integer> result = new HashMap<>();
         histogram.forEach(result::put);
         return result;
     }

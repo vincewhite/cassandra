@@ -1902,12 +1902,12 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return sstableMetadata.maxTimestamp;
     }
 
-    public int getMinLocalDeletionTime()
+    public long getMinLocalDeletionTime()
     {
         return sstableMetadata.minLocalDeletionTime;
     }
 
-    public int getMaxLocalDeletionTime()
+    public long getMaxLocalDeletionTime()
     {
         return sstableMetadata.maxLocalDeletionTime;
     }

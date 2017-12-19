@@ -60,13 +60,13 @@ public class BTreeRow extends AbstractRow
     // time to know if we have any deleted information or not. If we any "true" tombstone (i.e. not an expiring cell), this value will be forced to
     // Integer.MIN_VALUE, but if we don't and have expiring cells, this will the time at which the first expiring cell expires. If we have no tombstones and
     // no expiring cells, this will be Integer.MAX_VALUE;
-    private final int minLocalDeletionTime;
+    private final long minLocalDeletionTime;
 
     private BTreeRow(Clustering clustering,
                      LivenessInfo primaryKeyLivenessInfo,
                      Deletion deletion,
                      Object[] btree,
-                     int minLocalDeletionTime)
+                     long minLocalDeletionTime)
     {
         assert !deletion.isShadowedBy(primaryKeyLivenessInfo);
         this.clustering = clustering;
@@ -76,7 +76,7 @@ public class BTreeRow extends AbstractRow
         this.minLocalDeletionTime = minLocalDeletionTime;
     }
 
-    private BTreeRow(Clustering clustering, Object[] btree, int minLocalDeletionTime)
+    private BTreeRow(Clustering clustering, Object[] btree, long minLocalDeletionTime)
     {
         this(clustering, LivenessInfo.EMPTY, Deletion.LIVE, btree, minLocalDeletionTime);
     }
@@ -87,7 +87,7 @@ public class BTreeRow extends AbstractRow
                                   Deletion deletion,
                                   Object[] btree)
     {
-        int minDeletionTime = Math.min(minDeletionTime(primaryKeyLivenessInfo), minDeletionTime(deletion.time()));
+        long minDeletionTime = Math.min(minDeletionTime(primaryKeyLivenessInfo), minDeletionTime(deletion.time()));
         if (minDeletionTime != Integer.MIN_VALUE)
         {
             for (ColumnData cd : BTree.<ColumnData>iterable(btree))
@@ -101,7 +101,7 @@ public class BTreeRow extends AbstractRow
                                   LivenessInfo primaryKeyLivenessInfo,
                                   Deletion deletion,
                                   Object[] btree,
-                                  int minDeletionTime)
+                                  long minDeletionTime)
     {
         return new BTreeRow(clustering, primaryKeyLivenessInfo, deletion, btree, minDeletionTime);
     }
@@ -136,24 +136,24 @@ public class BTreeRow extends AbstractRow
                             minDeletionTime(primaryKeyLivenessInfo));
     }
 
-    private static int minDeletionTime(Cell cell)
+    private static long minDeletionTime(Cell cell)
     {
         return cell.isTombstone() ? Integer.MIN_VALUE : cell.localDeletionTime();
     }
 
-    private static int minDeletionTime(LivenessInfo info)
+    private static long minDeletionTime(LivenessInfo info)
     {
         return info.isExpiring() ? info.localExpirationTime() : Integer.MAX_VALUE;
     }
 
-    private static int minDeletionTime(DeletionTime dt)
+    private static long minDeletionTime(DeletionTime dt)
     {
         return dt.isLive() ? Integer.MAX_VALUE : Integer.MIN_VALUE;
     }
 
-    private static int minDeletionTime(ComplexColumnData cd)
+    private static long minDeletionTime(ComplexColumnData cd)
     {
-        int min = minDeletionTime(cd.complexDeletion());
+        long min = minDeletionTime(cd.complexDeletion());
         for (Cell cell : cd)
         {
             min = Math.min(min, minDeletionTime(cell));
@@ -163,7 +163,7 @@ public class BTreeRow extends AbstractRow
         return min;
     }
 
-    private static int minDeletionTime(ColumnData cd)
+    private static long minDeletionTime(ColumnData cd)
     {
         return cd.column().isSimple() ? minDeletionTime((Cell) cd) : minDeletionTime((ComplexColumnData)cd);
     }
@@ -178,10 +178,10 @@ public class BTreeRow extends AbstractRow
         BTree.apply(btree, funtion, stopCondition, reversed);
     }
 
-    private static int minDeletionTime(Object[] btree, LivenessInfo info, DeletionTime rowDeletion)
+    private static long minDeletionTime(Object[] btree, LivenessInfo info, DeletionTime rowDeletion)
     {
         //we have to wrap this for the lambda
-        final WrappedInt min = new WrappedInt(Math.min(minDeletionTime(info), minDeletionTime(rowDeletion)));
+        final WrappedLong min = new WrappedLong(Math.min(minDeletionTime(info), minDeletionTime(rowDeletion)));
 
         BTree.<ColumnData>apply(btree, cd -> min.set( Math.min(min.get(), minDeletionTime(cd)) ), cd -> min.get() == Integer.MIN_VALUE, false);
         return min.get();
@@ -420,7 +420,7 @@ public class BTreeRow extends AbstractRow
         if (info.isEmpty() && deletion.isLive() && BTree.isEmpty(transformed))
             return null;
 
-        int minDeletionTime = minDeletionTime(transformed, info, deletion.time());
+        long minDeletionTime = minDeletionTime(transformed, info, deletion.time());
         return BTreeRow.create(clustering, info, deletion, transformed, minDeletionTime);
     }
 
@@ -789,7 +789,7 @@ public class BTreeRow extends AbstractRow
             if (deletion.isShadowedBy(primaryKeyLivenessInfo))
                 deletion = Deletion.LIVE;
 
-            int minDeletionTime = minDeletionTime(btree, primaryKeyLivenessInfo, deletion.time());
+            long minDeletionTime = minDeletionTime(btree, primaryKeyLivenessInfo, deletion.time());
             Row row = BTreeRow.create(clustering, primaryKeyLivenessInfo, deletion, btree, minDeletionTime);
             reset();
             return row;

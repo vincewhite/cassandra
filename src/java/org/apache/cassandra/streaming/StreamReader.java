@@ -178,6 +178,7 @@ public class StreamReader
         private SSTableSimpleIterator iterator;
         private Row staticRow;
         private IOException exception;
+        private Version version;
 
         public StreamDeserializer(TableMetadata metadata, DataInputPlus in, Version version, SerializationHeader header) throws IOException
         {
@@ -185,12 +186,20 @@ public class StreamReader
             this.in = in;
             this.helper = new SerializationHelper(metadata, version.correspondingMessagingVersion(), SerializationHelper.Flag.PRESERVE_SIZE);
             this.header = header;
+            this.version = version;
         }
 
         public StreamDeserializer newPartition() throws IOException
         {
             key = metadata.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(in));
-            partitionLevelDeletion = DeletionTime.serializer.deserialize(in);
+            if (version.hasLongLocalDeletionTime())
+            {
+                partitionLevelDeletion = DeletionTime.serializer.deserialize(in);
+            }
+            else
+            {
+                partitionLevelDeletion = DeletionTime.legacySerializer.deserialize(in);
+            }
             iterator = SSTableSimpleIterator.create(metadata, in, header, helper, partitionLevelDeletion);
             staticRow = iterator.readStaticRow();
             return this;

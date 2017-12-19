@@ -180,7 +180,7 @@ public class BigTableWriter extends SSTableWriter
                                                        columnIndexWriter.indexInfoSerializedSize(),
                                                        columnIndexWriter.indexSamples(),
                                                        columnIndexWriter.offsets(),
-                                                       getRowIndexEntrySerializer().indexInfoSerializer());
+                                                       getRowIndexEntrySerializer().indexInfoSerializer(), descriptor.version );
 
             long endPosition = dataFile.position();
             long rowSize = endPosition - startPosition;

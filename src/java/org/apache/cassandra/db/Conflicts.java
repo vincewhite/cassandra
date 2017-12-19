@@ -29,11 +29,11 @@ public abstract class Conflicts
 
     public static Resolution resolveRegular(long leftTimestamp,
                                             boolean leftLive,
-                                            int leftLocalDeletionTime,
+                                            long leftLocalDeletionTime,
                                             ByteBuffer leftValue,
                                             long rightTimestamp,
                                             boolean rightLive,
-                                            int rightLocalDeletionTime,
+                                            long rightLocalDeletionTime,
                                             ByteBuffer rightValue)
     {
         if (leftTimestamp != rightTimestamp)

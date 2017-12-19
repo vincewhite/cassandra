@@ -98,7 +98,15 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
                         file.seek(indexEntry.position);
 
                     ByteBufferUtil.skipShortLength(file); // Skip partition key
-                    this.partitionLevelDeletion = DeletionTime.serializer.deserialize(file);
+                    if (sstable.descriptor.version.hasLongLocalDeletionTime())
+                    {
+                        this.partitionLevelDeletion = DeletionTime.serializer.deserialize(file);
+                    }
+                    else
+                    {
+                        this.partitionLevelDeletion = DeletionTime.legacySerializer.deserialize(file);
+                    }
+
 
                     // Note that this needs to be called after file != null and after the partitionDeletion has been set, but before readStaticRow
                     // (since it uses it) so we can't move that up (but we'll be able to simplify as soon as we drop support for the old file format).

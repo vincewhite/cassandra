@@ -54,7 +54,7 @@ public class ColumnIndex
     private int[] indexOffsets;
 
     private final SerializationHeader header;
-    private final int version;
+    private final Version version;
     private final SequentialWriter writer;
     private long initialPosition;
     private final  ISerializer<IndexInfo> idxSerializer;
@@ -79,7 +79,7 @@ public class ColumnIndex
     {
         this.header = header;
         this.writer = writer;
-        this.version = version.correspondingMessagingVersion();
+        this.version = version;
         this.observers = observers;
         this.idxSerializer = indexInfoSerializer;
     }
@@ -116,12 +116,20 @@ public class ColumnIndex
     private void writePartitionHeader(UnfilteredRowIterator iterator) throws IOException
     {
         ByteBufferUtil.writeWithShortLength(iterator.partitionKey().getKey(), writer);
-        DeletionTime.serializer.serialize(iterator.partitionLevelDeletion(), writer);
+        if (version.hasLongLocalDeletionTime())
+        {
+            DeletionTime.serializer.serialize(iterator.partitionLevelDeletion(), writer);
+        }
+        else
+        {
+            DeletionTime.legacySerializer.serialize(iterator.partitionLevelDeletion(), writer);
+        }
+
         if (header.hasStatic())
         {
             Row staticRow = iterator.staticRow();
 
-            UnfilteredSerializer.serializer.serializeStaticRow(staticRow, header, writer, version);
+            UnfilteredSerializer.serializer.serializeStaticRow(staticRow, header, writer, version.correspondingMessagingVersion());
             if (!observers.isEmpty())
                 observers.forEach((o) -> o.nextUnfilteredCluster(staticRow));
         }
@@ -243,7 +251,7 @@ public class ColumnIndex
             startPosition = pos;
         }
 
-        UnfilteredSerializer.serializer.serialize(unfiltered, header, writer, pos - previousRowStart, version);
+        UnfilteredSerializer.serializer.serialize(unfiltered, header, writer, pos - previousRowStart, version.correspondingMessagingVersion());
 
         // notify observers about each new row
         if (!observers.isEmpty())

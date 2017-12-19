@@ -53,7 +53,15 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     {
         try
         {
-            DeletionTime partitionLevelDeletion = DeletionTime.serializer.deserialize(file);
+            DeletionTime partitionLevelDeletion;
+            if (sstable.descriptor.version.hasLongLocalDeletionTime())
+            {
+                partitionLevelDeletion = DeletionTime.serializer.deserialize(file);
+            }
+            else
+            {
+                partitionLevelDeletion = DeletionTime.legacySerializer.deserialize(file);
+            }
             SerializationHelper helper = new SerializationHelper(sstable.metadata(), sstable.descriptor.version.correspondingMessagingVersion(), SerializationHelper.Flag.LOCAL);
             SSTableSimpleIterator iterator = SSTableSimpleIterator.create(sstable.metadata(), file, sstable.header, helper, partitionLevelDeletion);
             return new SSTableIdentityIterator(sstable, key, partitionLevelDeletion, file.getPath(), iterator);
@@ -71,7 +79,15 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         {
             dfile.seek(indexEntry.position);
             ByteBufferUtil.skipShortLength(dfile); // Skip partition key
-            DeletionTime partitionLevelDeletion = DeletionTime.serializer.deserialize(dfile);
+            DeletionTime partitionLevelDeletion;
+            if (sstable.descriptor.version.hasLongLocalDeletionTime())
+            {
+                partitionLevelDeletion = DeletionTime.serializer.deserialize(dfile);
+            }
+            else
+            {
+                partitionLevelDeletion = DeletionTime.legacySerializer.deserialize(dfile);
+            }
             SerializationHelper helper = new SerializationHelper(sstable.metadata(), sstable.descriptor.version.correspondingMessagingVersion(), SerializationHelper.Flag.LOCAL);
             SSTableSimpleIterator iterator = tombstoneOnly
                     ? SSTableSimpleIterator.createTombstoneOnly(sstable.metadata(), dfile, sstable.header, helper, partitionLevelDeletion)

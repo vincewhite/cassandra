@@ -101,12 +101,12 @@ public class RowTest
 
         try (UnfilteredRowIterator merged = UnfilteredRowIterators.merge(ImmutableList.of(update1.unfilteredIterator(), update2.unfilteredIterator()), nowInSeconds))
         {
-            Object[][] expected = new Object[][]{ { "1", "11", 123l, 123 },
-                                                  { "111", "112", 1230l, 123 },
-                                                  { "2", "24", 123l, 123 },
-                                                  { "3", "31", 1230l, 123 },
-                                                  { "4", "41", 123l, 1230 },
-                                                  { "5", "51", 123l, 1230 } };
+            Object[][] expected = new Object[][]{ { "1", "11", 123l, 123l },
+                                                  { "111", "112", 1230l, 123l },
+                                                  { "2", "24", 123l, 123l },
+                                                  { "3", "31", 1230l, 123l },
+                                                  { "4", "41", 123l, 1230l },
+                                                  { "5", "51", 123l, 1230l } };
             int i = 0;
             while (merged.hasNext())
             {

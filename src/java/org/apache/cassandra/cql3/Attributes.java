@@ -40,7 +40,7 @@ public class Attributes
      *
      * See {@link org.apache.cassandra.db.LivenessInfo#EXPIRED_LIVENESS_TTL}
      */
-    public static final int MAX_TTL = 20 * 365 * 24 * 60 * 60; // 20 years in seconds
+    public static final int MAX_TTL = Integer.MAX_VALUE - 1 ; // 68 years
 
     private final Term timestamp;
     private final Term timeToLive;
@@ -116,15 +116,12 @@ public class Attributes
         }
         catch (MarshalException e)
         {
-            throw new InvalidRequestException("Invalid timestamp value: " + tval);
+            throw new InvalidRequestException("Invalid ttl value: " + tval);
         }
 
         int ttl = Int32Type.instance.compose(tval);
         if (ttl < 0)
             throw new InvalidRequestException("A TTL must be greater or equal to 0, but was " + ttl);
-
-        if (ttl > MAX_TTL)
-            throw new InvalidRequestException(String.format("ttl is too large. requested (%d) maximum (%d)", ttl, MAX_TTL));
 
         if (defaultTimeToLive != LivenessInfo.NO_TTL && ttl == LivenessInfo.NO_TTL)
             return LivenessInfo.NO_TTL;

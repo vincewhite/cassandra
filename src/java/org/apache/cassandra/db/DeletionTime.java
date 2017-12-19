@@ -25,10 +25,13 @@ import com.google.common.hash.Hasher;
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.io.ISerializer;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.HashingUtils;
 import org.apache.cassandra.utils.ObjectSizes;
+
+import static java.lang.Math.min;
 
 /**
  * Information on deletion of a storage engine object.
@@ -40,14 +43,16 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
     /**
      * A special DeletionTime that signifies that there is no top-level (row) tombstone.
      */
-    public static final DeletionTime LIVE = new DeletionTime(Long.MIN_VALUE, Integer.MAX_VALUE);
+    public static final DeletionTime LIVE = new DeletionTime(Long.MIN_VALUE, Long.MAX_VALUE);
 
     public static final Serializer serializer = new Serializer();
 
-    private final long markedForDeleteAt;
-    private final int localDeletionTime;
+    public static final Serializer legacySerializer = new LegacySerializer();
 
-    public DeletionTime(long markedForDeleteAt, int localDeletionTime)
+    private final long markedForDeleteAt;
+    private final long localDeletionTime;
+
+    public DeletionTime(long markedForDeleteAt, long localDeletionTime)
     {
         this.markedForDeleteAt = markedForDeleteAt;
         this.localDeletionTime = localDeletionTime;
@@ -67,7 +72,7 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
      * The local server timestamp, in seconds since the unix epoch, at which this tombstone was created. This is
      * only used for purposes of purging the tombstone after gc_grace_seconds have elapsed.
      */
-    public int localDeletionTime()
+    public long localDeletionTime()
     {
         return localDeletionTime;
     }
@@ -77,7 +82,7 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
      */
     public boolean isLive()
     {
-        return markedForDeleteAt() == Long.MIN_VALUE && localDeletionTime() == Integer.MAX_VALUE;
+        return markedForDeleteAt() == Long.MIN_VALUE && localDeletionTime() == Long.MAX_VALUE;
     }
 
     public void digest(Hasher hasher)
@@ -145,7 +150,7 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
 
     public int dataSize()
     {
-        return 12;
+        return 16;
     }
 
     public long unsharedHeapSize()
@@ -153,17 +158,61 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
         return EMPTY_SIZE;
     }
 
+
+    public ISerializer<DeletionTime> getSerializer(Version version)
+    {
+        if (version.hasLongLocalDeletionTime())
+        {
+            return new Serializer();
+        }
+        else
+        {
+            return new LegacySerializer();
+        }
+
+    }
+
     public static class Serializer implements ISerializer<DeletionTime>
     {
         public void serialize(DeletionTime delTime, DataOutputPlus out) throws IOException
         {
-            out.writeInt(delTime.localDeletionTime());
+            out.writeLong(delTime.localDeletionTime());
             out.writeLong(delTime.markedForDeleteAt());
         }
 
         public DeletionTime deserialize(DataInputPlus in) throws IOException
         {
-            int ldt = in.readInt();
+            long ldt = in.readLong();
+            long mfda = in.readLong();
+            return mfda == Long.MIN_VALUE && ldt == Long.MAX_VALUE
+                 ? LIVE
+                 : new DeletionTime(mfda, ldt);
+        }
+
+        public void skip(DataInputPlus in) throws IOException
+        {
+            in.skipBytesFully(8 + 8);
+        }
+
+        public long serializedSize(DeletionTime delTime)
+        {
+            return TypeSizes.sizeof(delTime.localDeletionTime())
+                 + TypeSizes.sizeof(delTime.markedForDeleteAt());
+        }
+    }
+
+    public static class LegacySerializer extends Serializer
+    {
+        public void serialize(DeletionTime delTime, DataOutputPlus out) throws IOException
+        {
+            int ldt = delTime.localDeletionTime == Long.MAX_VALUE ? Integer.MAX_VALUE : (int)min(delTime.localDeletionTime, (long)Integer.MAX_VALUE - 1);
+            out.writeLong(delTime.localDeletionTime());
+            out.writeInt(ldt);
+        }
+
+        public DeletionTime deserialize(DataInputPlus in) throws IOException
+        {
+            long ldt = in.readInt();
             long mfda = in.readLong();
             return mfda == Long.MIN_VALUE && ldt == Integer.MAX_VALUE
                  ? LIVE
@@ -172,13 +221,13 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
 
         public void skip(DataInputPlus in) throws IOException
         {
-            in.skipBytesFully(4 + 8);
+            in.skipBytesFully(8 + 4);
         }
 
         public long serializedSize(DeletionTime delTime)
         {
             return TypeSizes.sizeof(delTime.localDeletionTime())
-                 + TypeSizes.sizeof(delTime.markedForDeleteAt());
+                 + TypeSizes.sizeof(Integer.MAX_VALUE);
         }
     }
 }

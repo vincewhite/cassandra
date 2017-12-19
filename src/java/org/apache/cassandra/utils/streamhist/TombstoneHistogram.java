@@ -20,6 +20,7 @@ package org.apache.cassandra.utils.streamhist;
 import java.io.IOException;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -31,6 +32,7 @@ import org.apache.cassandra.utils.streamhist.StreamingTombstoneHistogramBuilder.
 public class TombstoneHistogram
 {
     public static final HistogramSerializer serializer = new HistogramSerializer();
+    public static final HistogramSerializer legacySerializer = new LegacyHistogramSerializer();
 
     // Buffer with point-value pair
     private final DataHolder bin;
@@ -79,7 +81,46 @@ public class TombstoneHistogram
             out.writeInt(size);
             histogram.forEach((point, value) ->
                               {
-                                  out.writeDouble((double) point);
+                                  out.writeLong(point);
+                                  out.writeLong((long) value);
+                              });
+        }
+
+        public TombstoneHistogram deserialize(DataInputPlus in) throws IOException
+        {
+            in.readInt(); // max bin size
+            int size = in.readInt();
+            DataHolder dataHolder = new DataHolder(size, 1);
+            for (int i = 0; i < size; i++)
+            {
+                dataHolder.addValue(in.readLong(), (int)in.readLong());
+            }
+
+            return new TombstoneHistogram(dataHolder);
+        }
+
+        public long serializedSize(TombstoneHistogram histogram)
+        {
+            int maxBinSize = 0;
+            long size = TypeSizes.sizeof(maxBinSize);
+            final int histSize = histogram.size();
+            size += TypeSizes.sizeof(histSize);
+            // size of entries = size * (8(double) + 8(long))
+            size += histSize * (8L + 8L);
+            return size;
+        }
+    }
+    public static class LegacyHistogramSerializer extends HistogramSerializer
+    {
+        public void serialize(TombstoneHistogram histogram, DataOutputPlus out) throws IOException
+        {
+            final int size = histogram.size();
+            final int maxBinSize = size; // we write this for legacy reasons
+            out.writeInt(maxBinSize);
+            out.writeInt(size);
+            histogram.forEach((point, value) ->
+                              {
+                                  out.writeDouble((double)point);
                                   out.writeLong((long) value);
                               });
         }
@@ -108,7 +149,6 @@ public class TombstoneHistogram
             return size;
         }
     }
-
     @Override
     public boolean equals(Object o)
     {

@@ -190,7 +190,7 @@ public class RowIndexEntryTest extends CQLTester
                                           deletionInfo, columnIndex.headerLength, columnIndex.columnIndexCount,
                                           columnIndex.indexInfoSerializedSize(),
                                           columnIndex.indexSamples(), columnIndex.offsets(),
-                                          rieSerializer.indexInfoSerializer());
+                                          rieSerializer.indexInfoSerializer(), version);
             rieSerializer.serialize(rieNew, rieOutput, columnIndex.buffer());
             rieNewSerialized = rieOutput.buffer().duplicate();
 

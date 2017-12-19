@@ -106,7 +106,7 @@ public final class ResultSetBuilder
         if (!c.isExpiring())
             return -1;
 
-        int remaining = c.localDeletionTime() - nowInSec;
+        int remaining = (int)(c.localDeletionTime() - nowInSec);
         return remaining >= 0 ? remaining : -1;
     }
 

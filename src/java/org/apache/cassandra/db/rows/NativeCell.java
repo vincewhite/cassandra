@@ -29,13 +29,13 @@ import org.apache.cassandra.utils.memory.NativeAllocator;
 public class NativeCell extends AbstractCell
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new NativeCell());
-
+//TODO: rememeber to update this
     private static final long HAS_CELLPATH = 0;
     private static final long TIMESTAMP = 1;
     private static final long TTL = 9;
     private static final long DELETION = 13;
-    private static final long LENGTH = 17;
-    private static final long VALUE = 21;
+    private static final long LENGTH = 21;
+    private static final long VALUE = 25;
 
     private final long peer;
 
@@ -64,7 +64,7 @@ public class NativeCell extends AbstractCell
                       ColumnMetadata column,
                       long timestamp,
                       int ttl,
-                      int localDeletionTime,
+                      long localDeletionTime,
                       ByteBuffer value,
                       CellPath path)
     {
@@ -87,7 +87,7 @@ public class NativeCell extends AbstractCell
         MemoryUtil.setByte(peer + HAS_CELLPATH, (byte)(path == null ? 0 : 1));
         MemoryUtil.setLong(peer + TIMESTAMP, timestamp);
         MemoryUtil.setInt(peer + TTL, ttl);
-        MemoryUtil.setInt(peer + DELETION, localDeletionTime);
+        MemoryUtil.setLong(peer + DELETION, localDeletionTime);
         MemoryUtil.setInt(peer + LENGTH, value.remaining());
         MemoryUtil.setBytes(peer + VALUE, value);
 
@@ -117,9 +117,9 @@ public class NativeCell extends AbstractCell
         return MemoryUtil.getInt(peer + TTL);
     }
 
-    public int localDeletionTime()
+    public long localDeletionTime()
     {
-        return MemoryUtil.getInt(peer + DELETION);
+        return MemoryUtil.getLong(peer + DELETION);
     }
 
     public ByteBuffer value()

@@ -31,12 +31,12 @@ public class BufferCell extends AbstractCell
 
     private final long timestamp;
     private final int ttl;
-    private final int localDeletionTime;
+    private final long localDeletionTime;
 
     private final ByteBuffer value;
     private final CellPath path;
 
-    public BufferCell(ColumnMetadata column, long timestamp, int ttl, int localDeletionTime, ByteBuffer value, CellPath path)
+    public BufferCell(ColumnMetadata column, long timestamp, int ttl, long localDeletionTime, ByteBuffer value, CellPath path)
     {
         super(column);
         assert !column.isPrimaryKeyColumn();
@@ -66,7 +66,7 @@ public class BufferCell extends AbstractCell
     public static BufferCell expiring(ColumnMetadata column, long timestamp, int ttl, int nowInSec, ByteBuffer value, CellPath path)
     {
         assert ttl != NO_TTL;
-        return new BufferCell(column, timestamp, ttl, nowInSec + ttl, value, path);
+        return new BufferCell(column, timestamp, ttl, (long)nowInSec + ttl, value, path);
     }
 
     public static BufferCell tombstone(ColumnMetadata column, long timestamp, int nowInSec)
@@ -74,7 +74,7 @@ public class BufferCell extends AbstractCell
         return tombstone(column, timestamp, nowInSec, null);
     }
 
-    public static BufferCell tombstone(ColumnMetadata column, long timestamp, int nowInSec, CellPath path)
+    public static BufferCell tombstone(ColumnMetadata column, long timestamp, long nowInSec, CellPath path)
     {
         return new BufferCell(column, timestamp, NO_TTL, nowInSec, ByteBufferUtil.EMPTY_BYTE_BUFFER, path);
     }
@@ -89,7 +89,7 @@ public class BufferCell extends AbstractCell
         return ttl;
     }
 
-    public int localDeletionTime()
+    public long localDeletionTime()
     {
         return localDeletionTime;
     }

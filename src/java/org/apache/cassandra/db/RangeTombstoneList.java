@@ -57,12 +57,12 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
     private ClusteringBound[] starts;
     private ClusteringBound[] ends;
     private long[] markedAts;
-    private int[] delTimes;
+    private long[] delTimes;
 
     private long boundaryHeapSize;
     private int size;
 
-    private RangeTombstoneList(ClusteringComparator comparator, ClusteringBound[] starts, ClusteringBound[] ends, long[] markedAts, int[] delTimes, long boundaryHeapSize, int size)
+    private RangeTombstoneList(ClusteringComparator comparator, ClusteringBound[] starts, ClusteringBound[] ends, long[] markedAts, long[] delTimes, long boundaryHeapSize, int size)
     {
         assert starts.length == ends.length && starts.length == markedAts.length && starts.length == delTimes.length;
         this.comparator = comparator;
@@ -76,7 +76,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
 
     public RangeTombstoneList(ClusteringComparator comparator, int capacity)
     {
-        this(comparator, new ClusteringBound[capacity], new ClusteringBound[capacity], new long[capacity], new int[capacity], 0, 0);
+        this(comparator, new ClusteringBound[capacity], new ClusteringBound[capacity], new long[capacity], new long[capacity], 0, 0);
     }
 
     public boolean isEmpty()
@@ -145,7 +145,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
      * This method will be faster if the new tombstone sort after all the currently existing ones (this is a common use case),
      * but it doesn't assume it.
      */
-    public void add(ClusteringBound start, ClusteringBound end, long markedAt, int delTime)
+    public void add(ClusteringBound start, ClusteringBound end, long markedAt, long delTime)
     {
         if (isEmpty())
         {
@@ -527,7 +527,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
      *   - e_i <= s_i+1
      * Basically, range are non overlapping and in order.
      */
-    private void insertFrom(int i, ClusteringBound start, ClusteringBound end, long markedAt, int delTime)
+    private void insertFrom(int i, ClusteringBound start, ClusteringBound end, long markedAt, long delTime)
     {
         while (i < size)
         {
@@ -648,7 +648,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
     /*
      * Adds the new tombstone at index i, growing and/or moving elements to make room for it.
      */
-    private void addInternal(int i, ClusteringBound start, ClusteringBound end, long markedAt, int delTime)
+    private void addInternal(int i, ClusteringBound start, ClusteringBound end, long markedAt, long delTime)
     {
         assert i >= 0;
 
@@ -737,7 +737,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
         starts[i] = null;
     }
 
-    private void setInternal(int i, ClusteringBound start, ClusteringBound end, long markedAt, int delTime)
+    private void setInternal(int i, ClusteringBound start, ClusteringBound end, long markedAt, long delTime)
     {
         if (starts[i] != null)
             boundaryHeapSize -= starts[i].unsharedHeapSize() + ends[i].unsharedHeapSize();

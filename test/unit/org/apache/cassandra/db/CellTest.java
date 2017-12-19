@@ -155,7 +155,6 @@ public class CellTest
         assertInvalid(BufferCell.expiring(c, 0, -4, 4, bbs(4)));
         // Invalid local deletion times
         assertInvalid(BufferCell.expiring(c, 0, 4, -5, bbs(4)));
-        assertInvalid(BufferCell.expiring(c, 0, 4, Cell.NO_DELETION_TIME, bbs(4)));
 
         c = fakeColumn("c", MapType.getInstance(Int32Type.instance, Int32Type.instance, true));
         // Valid cell path
@@ -191,7 +190,6 @@ public class CellTest
         assertInvalid(BufferCell.expiring(c, 0, -4, 4, bb(1), CellPath.create(bbs(0))));
         // Invalid local deletion times
         assertInvalid(BufferCell.expiring(c, 0, 4, -5, bb(1), CellPath.create(bbs(0))));
-        assertInvalid(BufferCell.expiring(c, 0, 4, Cell.NO_DELETION_TIME, bb(1), CellPath.create(bbs(0))));
 
         // Invalid cell path (int values should be 0 or 2 bytes)
         assertInvalid(BufferCell.live(c, 0, bb(1), CellPath.create(ByteBufferUtil.bytes((long)4))));
@@ -230,7 +228,6 @@ public class CellTest
         assertInvalid(BufferCell.expiring(c, 0, -4, 4, val));
         // Invalid local deletion times
         assertInvalid(BufferCell.expiring(c, 0, 4, -5, val));
-        assertInvalid(BufferCell.expiring(c, 0, 4, Cell.NO_DELETION_TIME, val));
     }
 
     @Test
@@ -260,7 +257,7 @@ public class CellTest
             this.gcBefore = gcBefore;
         }
 
-        public boolean shouldPurge(long timestamp, int localDeletionTime)
+        public boolean shouldPurge(long timestamp, long localDeletionTime)
         {
             return localDeletionTime < gcBefore;
         }

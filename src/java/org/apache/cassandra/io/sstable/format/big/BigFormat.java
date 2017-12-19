@@ -131,6 +131,7 @@ public class BigFormat implements SSTableFormat
         public final boolean hasMaxCompressedLength;
         private final boolean hasPendingRepair;
         private final boolean hasMetadataChecksum;
+        private final boolean hasLongLocalDeletionTime;
 
         BigVersion(String version)
         {
@@ -144,6 +145,7 @@ public class BigFormat implements SSTableFormat
             hasMaxCompressedLength = version.compareTo("na") >= 0;
             hasPendingRepair = version.compareTo("na") >= 0;
             hasMetadataChecksum = version.compareTo("na") >= 0;
+            hasLongLocalDeletionTime = version.compareTo("na") >= 0;
         }
 
         @Override
@@ -196,6 +198,11 @@ public class BigFormat implements SSTableFormat
         public boolean hasMaxCompressedLength()
         {
             return hasMaxCompressedLength;
+        }
+
+        public boolean hasLongLocalDeletionTime()
+        {
+            return hasLongLocalDeletionTime;
         }
     }
 }

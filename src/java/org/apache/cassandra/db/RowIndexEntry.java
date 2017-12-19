@@ -27,6 +27,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.sstable.format.Version;
+import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -47,7 +48,7 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  * (long) position (64 bit long, vint encoded)
  *  (int) serialized size of data that follows (32 bit int, vint encoded)
  * -- following for indexed entries only (so serialized size > 0)
- *  (int) DeletionTime.localDeletionTime
+ * (long) DeletionTime.localDeletionTime
  * (long) DeletionTime.markedForDeletionAt
  *  (int) number of IndexInfo objects (32 bit int, vint encoded)
  *    (*) serialized IndexInfo objects, see below
@@ -194,7 +195,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
                                        DeletionTime deletionTime, long headerLength, int columnIndexCount,
                                        int indexedPartSize,
                                        List<IndexInfo> indexSamples, int[] offsets,
-                                       ISerializer<IndexInfo> idxInfoSerializer)
+                                       ISerializer<IndexInfo> idxInfoSerializer, Version version)
     {
         // If the "partition building code" in BigTableWriter.append() via ColumnIndex returns a list
         // of IndexInfo objects, which is the case if the serialized size is less than
@@ -203,14 +204,14 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         if (indexSamples != null && indexSamples.size() > 1)
             return new IndexedEntry(dataFilePosition, deletionTime, headerLength,
                                     indexSamples.toArray(new IndexInfo[indexSamples.size()]), offsets,
-                                    indexedPartSize, idxInfoSerializer);
+                                    indexedPartSize, idxInfoSerializer, version);
         // Here we have to decide whether we have serialized IndexInfo objects that exceeds
         // Config.column_index_cache_size_in_kb (not exceeding case covered above).
         // Such a "big" indexed-entry is represented as a shallow one.
         if (columnIndexCount > 1)
             return new ShallowIndexedEntry(dataFilePosition, indexFilePosition,
                                            deletionTime, headerLength, columnIndexCount,
-                                           indexedPartSize, idxInfoSerializer);
+                                           indexedPartSize, idxInfoSerializer, version);
         // Last case is that there are no index samples.
         return new RowIndexEntry<>(dataFilePosition);
     }
@@ -269,7 +270,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
                 case CACHE_INDEXED:
                     return new IndexedEntry(position, in, idxInfoSerializer, version);
                 case CACHE_INDEXED_SHALLOW:
-                    return new ShallowIndexedEntry(position, in, idxInfoSerializer);
+                    return new ShallowIndexedEntry(position, in, idxInfoSerializer, version);
                 default:
                     throw new AssertionError();
             }
@@ -305,10 +306,18 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             else
             {
                 long headerLength = in.readUnsignedVInt();
-                DeletionTime deletionTime = DeletionTime.serializer.deserialize(in);
+                DeletionTime deletionTime;
+                if (version.hasLongLocalDeletionTime())
+                {
+                    deletionTime = DeletionTime.serializer.deserialize(in);
+                }
+                else
+                {
+                    deletionTime = DeletionTime.legacySerializer.deserialize(in);
+                }
                 int columnsIndexCount = (int) in.readUnsignedVInt();
 
-                int indexedPartSize = size - serializedSize(deletionTime, headerLength, columnsIndexCount);
+                int indexedPartSize = size - serializedSize(deletionTime, headerLength, columnsIndexCount, version);
 
                 if (size <= DatabaseDescriptor.getColumnIndexCacheSize())
                 {
@@ -322,7 +331,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
                     return new ShallowIndexedEntry(position,
                                                    indexFilePosition,
                                                    deletionTime, headerLength, columnsIndexCount,
-                                                   indexedPartSize, idxInfoSerializer);
+                                                   indexedPartSize, idxInfoSerializer, version);
                 }
             }
         }
@@ -364,10 +373,11 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         }
     }
 
-    private static int serializedSize(DeletionTime deletionTime, long headerLength, int columnIndexCount)
+    private static int serializedSize(DeletionTime deletionTime, long headerLength, int columnIndexCount, Version version)
     {
+        int dtl = (int) (version.hasLongLocalDeletionTime() ? DeletionTime.serializer.serializedSize(deletionTime) : DeletionTime.legacySerializer.serializedSize(deletionTime));
         return TypeSizes.sizeofUnsignedVInt(headerLength)
-               + (int) DeletionTime.serializer.serializedSize(deletionTime)
+               + dtl
                + TypeSizes.sizeofUnsignedVInt(columnIndexCount);
     }
 
@@ -394,7 +404,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
 
         static
         {
-            BASE_SIZE = ObjectSizes.measure(new IndexedEntry(0, DeletionTime.LIVE, 0, null, null, 0, null));
+            BASE_SIZE = ObjectSizes.measure(new IndexedEntry(0, DeletionTime.LIVE, 0, null, null, 0, null, BigFormat.latestVersion));
         }
 
         private final DeletionTime deletionTime;
@@ -406,9 +416,11 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         @Unmetered
         private final ISerializer<IndexInfo> idxInfoSerializer;
 
+        private final Version version;
+
         private IndexedEntry(long dataFilePosition, DeletionTime deletionTime, long headerLength,
                              IndexInfo[] columnsIndex, int[] offsets,
-                             int indexedPartSize, ISerializer<IndexInfo> idxInfoSerializer)
+                             int indexedPartSize, ISerializer<IndexInfo> idxInfoSerializer, Version version)
         {
             super(dataFilePosition);
 
@@ -419,6 +431,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             this.offsets = offsets;
             this.indexedPartSize = indexedPartSize;
             this.idxInfoSerializer = idxInfoSerializer;
+            this.version = version;
         }
 
         private IndexedEntry(long dataFilePosition, DataInputPlus in,
@@ -443,6 +456,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             this.indexedPartSize = indexedPartSize;
 
             this.idxInfoSerializer = idxInfoSerializer;
+            this.version = version;
         }
 
         /**
@@ -453,7 +467,16 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             super(dataFilePosition);
 
             this.headerLength = in.readUnsignedVInt();
-            this.deletionTime = DeletionTime.serializer.deserialize(in);
+            this.version = version;
+
+            if (this.version.hasLongLocalDeletionTime())
+            {
+                this.deletionTime = DeletionTime.serializer.deserialize(in);
+            }
+            else
+            {
+                this.deletionTime = DeletionTime.serializer.deserialize(in);
+            }
             int columnsIndexCount = (int) in.readUnsignedVInt();
 
             TrackedDataInputPlus trackedIn = new TrackedDataInputPlus(in);
@@ -467,6 +490,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             this.indexedPartSize = (int) trackedIn.getBytesRead();
 
             this.idxInfoSerializer = idxInfoSerializer;
+
         }
 
         @Override
@@ -490,7 +514,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         @Override
         public IndexInfoRetriever openWithIndex(FileHandle indexFile)
         {
-            indexEntrySizeHistogram.update(serializedSize(deletionTime, headerLength, columnsIndex.length) + indexedPartSize);
+            indexEntrySizeHistogram.update(serializedSize(deletionTime, headerLength, columnsIndex.length, version) + indexedPartSize);
             indexInfoCountHistogram.update(columnsIndex.length);
             return new IndexInfoRetriever()
             {
@@ -528,10 +552,17 @@ public class RowIndexEntry<T> implements IMeasurableMemory
 
             out.writeUnsignedVInt(position);
 
-            out.writeUnsignedVInt(serializedSize(deletionTime, headerLength, columnsIndex.length) + indexedPartSize);
+            out.writeUnsignedVInt(serializedSize(deletionTime, headerLength, columnsIndex.length, version) + indexedPartSize);
 
             out.writeUnsignedVInt(headerLength);
-            DeletionTime.serializer.serialize(deletionTime, out);
+            if (version.hasLongLocalDeletionTime())
+            {
+                DeletionTime.serializer.serialize(deletionTime, out);
+            }
+            else
+            {
+                DeletionTime.legacySerializer.serialize(deletionTime, out);
+            }
             out.writeUnsignedVInt(columnsIndex.length);
             for (IndexInfo info : columnsIndex)
                 idxInfoSerializer.serialize(info, out);
@@ -573,7 +604,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
 
         static
         {
-            BASE_SIZE = ObjectSizes.measure(new ShallowIndexedEntry(0, 0, DeletionTime.LIVE, 0, 10, 0, null));
+            BASE_SIZE = ObjectSizes.measure(new ShallowIndexedEntry(0, 0, DeletionTime.LIVE, 0, 10, 0, null, BigFormat.latestVersion));
         }
 
         private final long indexFilePosition;
@@ -587,14 +618,15 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         @Unmetered
         private final ISerializer<IndexInfo> idxInfoSerializer;
         private final int fieldsSerializedSize;
+        private final Version version;
 
         /**
-         * See {@link #create(long, long, DeletionTime, long, int, int, List, int[], ISerializer)} for a description
+         * See {@link #create(long, long, DeletionTime, long, int, int, List, int[], ISerializer, Version)} for a description
          * of the parameters.
          */
         private ShallowIndexedEntry(long dataFilePosition, long indexFilePosition,
                                     DeletionTime deletionTime, long headerLength, int columnIndexCount,
-                                    int indexedPartSize, ISerializer<IndexInfo> idxInfoSerializer)
+                                    int indexedPartSize, ISerializer<IndexInfo> idxInfoSerializer, Version version)
         {
             super(dataFilePosition);
 
@@ -608,28 +640,42 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             this.indexedPartSize = indexedPartSize;
             this.idxInfoSerializer = idxInfoSerializer;
 
-            this.fieldsSerializedSize = serializedSize(deletionTime, headerLength, columnIndexCount);
+            this.version = version;
+
+            this.fieldsSerializedSize = serializedSize(deletionTime, headerLength, columnIndexCount, this.version);
             this.offsetsOffset = indexedPartSize + fieldsSerializedSize - columnsIndexCount * TypeSizes.sizeof(0);
         }
 
         /**
          * Constructor for key-cache deserialization
          */
-        private ShallowIndexedEntry(long dataFilePosition, DataInputPlus in, IndexInfo.Serializer idxInfoSerializer) throws IOException
+        private ShallowIndexedEntry(long dataFilePosition, DataInputPlus in, IndexInfo.Serializer idxInfoSerializer, Version version) throws IOException
         {
             super(dataFilePosition);
 
             this.indexFilePosition = in.readUnsignedVInt();
 
             this.headerLength = in.readUnsignedVInt();
-            this.deletionTime = DeletionTime.serializer.deserialize(in);
+            this.version = version;
+
+            if (this.version.hasLongLocalDeletionTime())
+            {
+                this.deletionTime = DeletionTime.serializer.deserialize(in);
+            }
+            else
+            {
+                this.deletionTime = DeletionTime.serializer.deserialize(in);
+            }
+
             this.columnsIndexCount = (int) in.readUnsignedVInt();
 
             this.indexedPartSize = (int) in.readUnsignedVInt();
 
             this.idxInfoSerializer = idxInfoSerializer;
 
-            this.fieldsSerializedSize = serializedSize(deletionTime, headerLength, columnsIndexCount);
+
+
+            this.fieldsSerializedSize = serializedSize(deletionTime, headerLength, columnsIndexCount, this.version);
             this.offsetsOffset = indexedPartSize + fieldsSerializedSize - columnsIndexCount * TypeSizes.sizeof(0);
         }
 
@@ -672,7 +718,14 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             out.writeUnsignedVInt(fieldsSerializedSize + indexInfo.limit());
 
             out.writeUnsignedVInt(headerLength);
-            DeletionTime.serializer.serialize(deletionTime, out);
+            if (version.hasLongLocalDeletionTime())
+            {
+                DeletionTime.serializer.serialize(deletionTime, out);
+            }
+            else
+            {
+                DeletionTime.legacySerializer.serialize(deletionTime, out);
+            }
             out.writeUnsignedVInt(columnsIndexCount);
 
             out.write(indexInfo);

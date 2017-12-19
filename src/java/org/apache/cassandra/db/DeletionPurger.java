@@ -21,7 +21,7 @@ public interface DeletionPurger
 {
     public static final DeletionPurger PURGE_ALL = (ts, ldt) -> true;
 
-    public boolean shouldPurge(long timestamp, int localDeletionTime);
+    public boolean shouldPurge(long timestamp, long localDeletionTime);
 
     public default boolean shouldPurge(DeletionTime dt)
     {

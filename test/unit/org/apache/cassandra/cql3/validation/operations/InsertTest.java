@@ -69,8 +69,8 @@ public class InsertTest extends CQLTester
         assertInvalidMessage("A TTL must be greater or equal to 0, but was -5",
                              "INSERT INTO %s (k, v) VALUES (?, ?) USING TTL ?", 1, 1, -5);
 
-        assertInvalidMessage("ttl is too large.",
-                             "INSERT INTO %s (k, v) VALUES (?, ?) USING TTL ?", 1, 1, Attributes.MAX_TTL + 1);
+        assertInvalidMessage("Expected 4 or 0 byte int (8)",
+                             "INSERT INTO %s (k, v) VALUES (?, ?) USING TTL ?", 1, 1, (long)Attributes.MAX_TTL + 1);
     }
 
     @Test

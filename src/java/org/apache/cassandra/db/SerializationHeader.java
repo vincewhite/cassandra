@@ -164,7 +164,7 @@ public class SerializationHeader
         out.writeUnsignedVInt(timestamp - stats.minTimestamp);
     }
 
-    public void writeLocalDeletionTime(int localDeletionTime, DataOutputPlus out) throws IOException
+    public void writeLocalDeletionTime(long localDeletionTime, DataOutputPlus out) throws IOException
     {
         out.writeUnsignedVInt(localDeletionTime - stats.minLocalDeletionTime);
     }
@@ -185,9 +185,9 @@ public class SerializationHeader
         return in.readUnsignedVInt() + stats.minTimestamp;
     }
 
-    public int readLocalDeletionTime(DataInputPlus in) throws IOException
+    public long readLocalDeletionTime(DataInputPlus in) throws IOException
     {
-        return (int)in.readUnsignedVInt() + stats.minLocalDeletionTime;
+        return in.readUnsignedVInt() + stats.minLocalDeletionTime;
     }
 
     public int readTTL(DataInputPlus in) throws IOException
@@ -198,7 +198,7 @@ public class SerializationHeader
     public DeletionTime readDeletionTime(DataInputPlus in) throws IOException
     {
         long markedAt = readTimestamp(in);
-        int localDeletionTime = readLocalDeletionTime(in);
+        long localDeletionTime = readLocalDeletionTime(in);
         return new DeletionTime(markedAt, localDeletionTime);
     }
 
@@ -207,7 +207,7 @@ public class SerializationHeader
         return TypeSizes.sizeofUnsignedVInt(timestamp - stats.minTimestamp);
     }
 
-    public long localDeletionTimeSerializedSize(int localDeletionTime)
+    public long localDeletionTimeSerializedSize(long localDeletionTime)
     {
         return TypeSizes.sizeofUnsignedVInt(localDeletionTime - stats.minLocalDeletionTime);
     }

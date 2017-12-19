@@ -48,7 +48,7 @@ public class LivenessInfo
      * (See {@link org.apache.cassandra.cql3.Attributes#MAX_TTL})
      */
     public static final int EXPIRED_LIVENESS_TTL = Integer.MAX_VALUE;
-    public static final int NO_EXPIRATION_TIME = Integer.MAX_VALUE;
+    public static final long NO_EXPIRATION_TIME = Long.MAX_VALUE;
 
     public static final LivenessInfo EMPTY = new LivenessInfo(NO_TIMESTAMP);
 
@@ -67,7 +67,7 @@ public class LivenessInfo
     public static LivenessInfo expiring(long timestamp, int ttl, int nowInSec)
     {
         assert ttl != EXPIRED_LIVENESS_TTL;
-        return new ExpiringLivenessInfo(timestamp, ttl, nowInSec + ttl);
+        return new ExpiringLivenessInfo(timestamp, ttl, (long)nowInSec + ttl);
     }
 
     public static LivenessInfo create(long timestamp, int ttl, int nowInSec)
@@ -79,7 +79,7 @@ public class LivenessInfo
 
     // Note that this ctor takes the expiration time, not the current time.
     // Use when you know that's what you want.
-    public static LivenessInfo withExpirationTime(long timestamp, int ttl, int localExpirationTime)
+    public static LivenessInfo withExpirationTime(long timestamp, int ttl, long localExpirationTime)
     {
         if (ttl == EXPIRED_LIVENESS_TTL)
             return new ExpiredLivenessInfo(timestamp, ttl, localExpirationTime);
@@ -130,7 +130,7 @@ public class LivenessInfo
      * The expiration time (in seconds) if the info is expiring ({@link #NO_EXPIRATION_TIME} otherwise).
      *
      */
-    public int localExpirationTime()
+    public long localExpirationTime()
     {
         return NO_EXPIRATION_TIME;
     }
@@ -260,7 +260,7 @@ public class LivenessInfo
      */
     private static class ExpiredLivenessInfo extends ExpiringLivenessInfo
     {
-        private ExpiredLivenessInfo(long timestamp, int ttl, int localExpirationTime)
+        private ExpiredLivenessInfo(long timestamp, int ttl, long localExpirationTime)
         {
             super(timestamp, ttl, localExpirationTime);
             assert ttl == EXPIRED_LIVENESS_TTL;
@@ -290,9 +290,9 @@ public class LivenessInfo
     private static class ExpiringLivenessInfo extends LivenessInfo
     {
         private final int ttl;
-        private final int localExpirationTime;
+        private final long localExpirationTime;
 
-        private ExpiringLivenessInfo(long timestamp, int ttl, int localExpirationTime)
+        private ExpiringLivenessInfo(long timestamp, int ttl, long localExpirationTime)
         {
             super(timestamp);
             assert ttl != NO_TTL && localExpirationTime != NO_EXPIRATION_TIME;
@@ -307,7 +307,7 @@ public class LivenessInfo
         }
 
         @Override
-        public int localExpirationTime()
+        public long localExpirationTime()
         {
             return localExpirationTime;
         }
@@ -328,7 +328,7 @@ public class LivenessInfo
         public void digest(Hasher hasher)
         {
             super.digest(hasher);
-            HashingUtils.updateWithInt(hasher, localExpirationTime);
+            HashingUtils.updateWithLong(hasher, localExpirationTime);
             HashingUtils.updateWithInt(hasher, ttl);
         }
 

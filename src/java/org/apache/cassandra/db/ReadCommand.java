@@ -282,7 +282,7 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
 
     protected abstract UnfilteredPartitionIterator queryStorage(ColumnFamilyStore cfs, ReadExecutionController executionController);
 
-    protected abstract int oldestUnrepairedTombstone();
+    protected abstract long oldestUnrepairedTombstone();
 
     public ReadResponse createResponse(UnfilteredPartitionIterator iterator)
     {

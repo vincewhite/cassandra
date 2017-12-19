@@ -16,12 +16,37 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.utils.streamhist;
+package org.apache.cassandra.utils;
 
 /**
- * This interface exists to avoid boxing primitive ints to Integers (otherwise <i>{@link java.util.function.BiConsumer}&lt;Integer, Integer&gt;</i> would have been sufficient).
+ * Simple wrapper for native int type
  */
-public interface HistogramDataConsumer<T extends Exception>
+public class WrappedLong
 {
-    void consume(long point, int value) throws T;
+    private long value;
+
+    public WrappedLong(Long initial)
+    {
+        this.value = initial;
+    }
+
+    public long get()
+    {
+        return value;
+    }
+
+    public void set(long value)
+    {
+        this.value = value;
+    }
+
+    public void increment()
+    {
+        ++value;
+    }
+
+    public void decrement()
+    {
+        --value;
+    }
 }
