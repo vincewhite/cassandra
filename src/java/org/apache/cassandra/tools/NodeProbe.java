@@ -30,6 +30,7 @@ import java.rmi.server.RMIClientSocketFactory;
 import java.rmi.server.RMISocketFactory;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -278,9 +279,13 @@ public class NodeProbe implements AutoCloseable
 
     public int garbageCollect(String tombstoneOption, int jobs, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
-        return ssProxy.garbageCollect(tombstoneOption, jobs, keyspaceName, tableNames);
+        return garbageCollect(tombstoneOption, jobs, Collections.EMPTY_LIST, keyspaceName, tableNames);
     }
 
+    public int garbageCollect(String tombstoneOption, int jobs, Collection levels, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
+    {
+        return ssProxy.garbageCollect(tombstoneOption, jobs, levels, keyspaceName, tableNames);
+    }
     private void checkJobs(PrintStream out, int jobs)
     {
         // TODO this should get the configured number of concurrent_compactors via JMX and not using DatabaseDescriptor
@@ -355,7 +360,11 @@ public class NodeProbe implements AutoCloseable
 
     public void garbageCollect(PrintStream out, String tombstoneOption, int jobs, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
-        if (garbageCollect(tombstoneOption, jobs, keyspaceName, tableNames) != 0)
+        garbageCollect(out,tombstoneOption,jobs, Collections.EMPTY_LIST, keyspaceName, tableNames);
+    }
+    public void garbageCollect(PrintStream out, String tombstoneOption, int jobs, Collection<Integer> levels, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
+    {
+        if (garbageCollect(tombstoneOption, jobs, levels, keyspaceName, tableNames) != 0)
         {
             failed = true;
             out.println("Aborted garbage collection for at least one table in keyspace " + keyspaceName + ", check server logs for more information.");

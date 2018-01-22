@@ -1542,7 +1542,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public CompactionManager.AllSSTableOpStatus garbageCollect(TombstoneOption tombstoneOption, int jobs) throws ExecutionException, InterruptedException
     {
-        return CompactionManager.instance.performGarbageCollection(this, tombstoneOption, jobs);
+        return CompactionManager.instance.performGarbageCollection(this, tombstoneOption, jobs, Collections.EMPTY_LIST);
+    }
+
+    public CompactionManager.AllSSTableOpStatus garbageCollect(TombstoneOption tombstoneOption, int jobs, Collection<Integer> levels) throws ExecutionException, InterruptedException
+    {
+        return CompactionManager.instance.performGarbageCollection(this, tombstoneOption, jobs, levels);
     }
 
     public void markObsolete(Collection<SSTableReader> sstables, OperationType compactionType)

@@ -41,6 +41,7 @@ import org.apache.cassandra.cache.AutoSavingCache;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.Schema;
@@ -481,7 +482,7 @@ public class CompactionManager implements CompactionManagerMBean
         }, jobs, OperationType.CLEANUP);
     }
 
-    public AllSSTableOpStatus performGarbageCollection(final ColumnFamilyStore cfStore, TombstoneOption tombstoneOption, int jobs) throws InterruptedException, ExecutionException
+    public AllSSTableOpStatus performGarbageCollection(final ColumnFamilyStore cfStore, TombstoneOption tombstoneOption, int jobs, Collection<Integer> levels) throws InterruptedException, ExecutionException
     {
         assert !cfStore.isIndex();
 
@@ -490,10 +491,39 @@ public class CompactionManager implements CompactionManagerMBean
             @Override
             public Iterable<SSTableReader> filterSSTables(LifecycleTransaction transaction)
             {
-                Iterable<SSTableReader> originals = transaction.originals();
+                Iterable<SSTableReader> originals = new ArrayList(transaction.originals());
+                Iterable<SSTableReader> toCompact;
                 if (cfStore.getCompactionStrategyManager().onlyPurgeRepairedTombstones())
-                    originals = Iterables.filter(originals, SSTableReader::isRepaired);
-                List<SSTableReader> sortedSSTables = Lists.newArrayList(originals);
+                {
+                    toCompact = Iterables.filter(originals, SSTableReader::isRepaired);
+                    transaction.cancel(Lists.newArrayList(Iterables.filter(originals, x -> x.isRepaired() == false)));
+                }
+                else
+                {
+                    toCompact = originals;
+                }
+
+                List<SSTableReader> sortedSSTables;
+                if (!levels.isEmpty())
+                {
+                    sortedSSTables = new ArrayList<>();
+                    for (SSTableReader ya : toCompact)
+                    {
+                        if (levels.contains(ya.getSSTableLevel()))
+                        {
+                            sortedSSTables.add(ya);
+                        }
+                        else
+                        {
+                            transaction.cancel(ya);
+                        }
+                    }
+                }
+                else
+                {
+                        sortedSSTables = Lists.newArrayList(toCompact);
+                }
+
                 Collections.sort(sortedSSTables, SSTableReader.maxTimestampComparator);
                 return sortedSSTables;
             }
@@ -502,14 +532,31 @@ public class CompactionManager implements CompactionManagerMBean
             public void execute(LifecycleTransaction txn) throws IOException
             {
                 logger.debug("Garbage collecting {}", txn.originals());
-                CompactionTask task = new CompactionTask(cfStore, txn, getDefaultGcBefore(cfStore, FBUtilities.nowInSeconds()))
+                CompactionTask task;
+                if (cfStore.getCompactionStrategyManager().compactionStrategyFor(txn.originals().iterator().next()).getClass() == LeveledCompactionStrategy.class)
                 {
-                    @Override
-                    protected CompactionController getCompactionController(Set<SSTableReader> toCompact)
+                     task = new LeveledCompactionTask(cfStore, txn, txn.originals().iterator().next().getSSTableLevel(),  getDefaultGcBefore(cfStore, FBUtilities.nowInSeconds()), Long.MAX_VALUE, false)
                     {
-                        return new CompactionController(cfStore, toCompact, gcBefore, null, tombstoneOption);
-                    }
-                };
+                        @Override
+                        protected CompactionController getCompactionController(Set<SSTableReader> toCompact)
+                        {
+                            return new CompactionController(cfStore, toCompact, gcBefore, null, tombstoneOption);
+                        }
+                    };
+                }
+                else
+                {
+                    task = new CompactionTask( cfStore, txn,  getDefaultGcBefore(cfStore, FBUtilities.nowInSeconds()))
+                    {
+                        @Override
+                        protected CompactionController getCompactionController(Set<SSTableReader> toCompact)
+                        {
+                            return new CompactionController(cfStore, toCompact, gcBefore, null, tombstoneOption);
+                        }
+                    };
+                }
+
+
                 task.setUserDefined(true);
                 task.setCompactionType(OperationType.GARBAGE_COLLECT);
                 task.execute(metrics);

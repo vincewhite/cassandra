@@ -22,7 +22,11 @@ import io.airlift.airline.Command;
 import io.airlift.airline.Option;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+
+import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
@@ -44,17 +48,32 @@ public class GarbageCollect extends NodeToolCmd
             description = "Number of sstables to cleanup simultanously, set to 0 to use all available compaction threads")
     private int jobs = 2;
 
+    @Option(title = "levels",
+            name = {"-l", "--levels"},
+            description = "Which LCS levels to include in the garbage collection. All levels will compacted by default")
+    private String levelsString = "";
+
     @Override
     public void execute(NodeProbe probe)
     {
         List<String> keyspaces = parseOptionalKeyspace(args, probe);
         String[] tableNames = parseOptionalTables(args);
+        List<Integer> levels = Collections.EMPTY_LIST;
+        if (!levelsString.equals(""))
+        {
+           String[] levelsStrings = levelsString.split(",");
+           levels = new ArrayList<>();
+           for (String x : levelsStrings)
+           {
+               levels.add(Integer.parseInt(x));
+           }
+        }
 
         for (String keyspace : keyspaces)
         {
             try
             {
-                probe.garbageCollect(System.out, tombstoneOption, jobs, keyspace, tableNames);
+                probe.garbageCollect(System.out, tombstoneOption, jobs, levels, keyspace, tableNames);
             } catch (Exception e)
             {
                 throw new RuntimeException("Error occurred during garbage collection", e);

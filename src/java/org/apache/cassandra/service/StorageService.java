@@ -3004,14 +3004,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         return status.statusCode;
     }
-
     public int garbageCollect(String tombstoneOptionString, int jobs, String keyspaceName, String ... columnFamilies) throws IOException, ExecutionException, InterruptedException
+    {
+       return garbageCollect(tombstoneOptionString, jobs, Collections.EMPTY_LIST, keyspaceName, columnFamilies);
+    }
+    public int garbageCollect(String tombstoneOptionString, int jobs, Collection<Integer> levels, String keyspaceName, String ... columnFamilies) throws IOException, ExecutionException, InterruptedException
     {
         TombstoneOption tombstoneOption = TombstoneOption.valueOf(tombstoneOptionString);
         CompactionManager.AllSSTableOpStatus status = CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
         for (ColumnFamilyStore cfs : getValidColumnFamilies(false, false, keyspaceName, columnFamilies))
         {
-            CompactionManager.AllSSTableOpStatus oneStatus = cfs.garbageCollect(tombstoneOption, jobs);
+            CompactionManager.AllSSTableOpStatus oneStatus = cfs.garbageCollect(tombstoneOption, jobs, levels);
             if (oneStatus != CompactionManager.AllSSTableOpStatus.SUCCESSFUL)
                 status = oneStatus;
         }
