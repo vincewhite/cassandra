@@ -491,37 +491,45 @@ public class CompactionManager implements CompactionManagerMBean
             @Override
             public Iterable<SSTableReader> filterSSTables(LifecycleTransaction transaction)
             {
-                Iterable<SSTableReader> originals = new ArrayList(transaction.originals());
-                Iterable<SSTableReader> toCompact;
+                ArrayList<SSTableReader> toCompact = new ArrayList<>();
                 if (cfStore.getCompactionStrategyManager().onlyPurgeRepairedTombstones())
                 {
-                    toCompact = Iterables.filter(originals, SSTableReader::isRepaired);
-                    transaction.cancel(Lists.newArrayList(Iterables.filter(originals, x -> x.isRepaired() == false)));
+                    for (SSTableReader sstable : transaction.originals())
+                    {
+                        if (sstable.isRepaired())
+                        {
+                            toCompact.add(sstable);
+                        }
+                        else
+                        {
+                            transaction.cancel(sstable);
+                        }
+                    }
                 }
                 else
                 {
-                    toCompact = originals;
+                    toCompact.addAll(transaction.originals());
                 }
 
                 List<SSTableReader> sortedSSTables;
                 if (!levels.isEmpty())
                 {
                     sortedSSTables = new ArrayList<>();
-                    for (SSTableReader ya : toCompact)
+                    for (SSTableReader sstable : toCompact)
                     {
-                        if (levels.contains(ya.getSSTableLevel()))
+                        if (levels.contains(sstable.getSSTableLevel()))
                         {
-                            sortedSSTables.add(ya);
+                            sortedSSTables.add(sstable);
                         }
                         else
                         {
-                            transaction.cancel(ya);
+                            transaction.cancel(sstable);
                         }
                     }
                 }
                 else
                 {
-                        sortedSSTables = Lists.newArrayList(toCompact);
+                        sortedSSTables = toCompact;
                 }
 
                 Collections.sort(sortedSSTables, SSTableReader.maxTimestampComparator);
