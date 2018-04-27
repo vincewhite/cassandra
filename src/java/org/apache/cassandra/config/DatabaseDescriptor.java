@@ -903,11 +903,20 @@ public class DatabaseDescriptor
         if (conf.initial_token != null)
         {
             Collection<String> tokens = tokensFromString(conf.initial_token);
-            if (tokens.size() != conf.num_tokens)
-                throw new ConfigurationException("The number of initial tokens (by initial_token) specified is different from num_tokens value", false);
-
+            if (conf.num_tokens != -1)
+            {
+                if (tokens.size() != conf.num_tokens)
+                    throw new ConfigurationException("The number of initial tokens (by initial_token) specified is different from num_tokens value", false);
+            }
             for (String token : tokens)
                 partitioner.getTokenFactory().validate(token);
+        }
+        else
+        {
+            if (conf.num_tokens == -1)
+            {
+                conf.num_tokens = 1;
+            }
         }
     }
 

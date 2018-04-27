@@ -77,7 +77,7 @@ public class Config
 
     /* initial token in the ring */
     public String initial_token;
-    public int num_tokens = 1;
+    public int num_tokens = -1;
     /** Triggers automatic allocation of tokens if set, using the replication strategy of the referenced keyspace */
     public String allocate_tokens_for_keyspace = null;
 
