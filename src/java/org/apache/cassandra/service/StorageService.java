@@ -508,11 +508,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                        "To perform this operation, please restart with " +
                                        "-Dcassandra.allow_unsafe_replace=true");
 
-        if (DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress()) && !Boolean.getBoolean("cassandra.allow_unsafe_replace"))
-            throw new RuntimeException("Replacing node cannot be in its own seed list. This would prevent it " +
-                                       "from bootstrapping. To force this replacement without bootstrapping " +
-                                       "please restart with -Dcassandra.allow_unsafe_replace=true. Otherwise " +
-                                       "remove this node from its own seed list and restart to replace normally");
+        if (DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddress()))
+            throw new RuntimeException("Replacing node cannot be in its own seed list. Remove this node from its " +
+                                       "own seed list and restart to replace normally. To replace without streaming " +
+                                       "use auto_bootstrap: false and cassandra.allow_unsafe_replace");
 
         InetAddress replaceAddress = DatabaseDescriptor.getReplaceAddress();
         logger.info("Gathering node replacement information for {}", replaceAddress);
