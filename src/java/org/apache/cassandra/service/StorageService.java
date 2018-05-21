@@ -718,6 +718,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 if (!DatabaseDescriptor.isAutoBootstrap())
                     throw new RuntimeException("Trying to replace_address with auto_bootstrap disabled will not work, check your configuration");
                 bootstrapTokens = prepareReplacementInfo();
+                SystemKeyspace.updateTokens(bootstrapTokens);
                 if (isReplacingSameAddress())
                 {
                     logger.warn("Writes will not be forwarded to this node during replacement because it has the same address as " +
