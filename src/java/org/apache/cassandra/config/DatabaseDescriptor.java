@@ -652,6 +652,8 @@ public class DatabaseDescriptor
             else if (conf.num_tokens > MAX_NUM_TOKENS)
                 throw new ConfigurationException(String.format("A maximum number of %d tokens per node is supported", MAX_NUM_TOKENS), false);
         }
+
+
         try
         {
             // if key_cache_size_in_mb option was set to "auto" then size of the cache should be "min(5% of Heap (in MB), 100MB)
