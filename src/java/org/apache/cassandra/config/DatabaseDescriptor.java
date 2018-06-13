@@ -42,6 +42,7 @@ import org.apache.cassandra.auth.IInternodeAuthenticator;
 import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.config.Config.CommitLogSync;
 import org.apache.cassandra.config.Config.RequestSchedulerId;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSWriteError;
@@ -61,6 +62,7 @@ import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.thrift.ThriftServer.ThriftServerType;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.xpath.operations.Bool;
 
 import org.apache.commons.lang3.StringUtils;
 
@@ -1345,11 +1347,44 @@ public class DatabaseDescriptor
     {
         try
         {
-            if (System.getProperty(Config.PROPERTY_PREFIX + "replace_address", null) != null)
+            if (SystemKeyspace.getBootstrapState() == SystemKeyspace.BootstrapState.REPLACEMENT_IN_PROGRESS)
+                return SystemKeyspace.getReplacedNode();
+            else if (System.getProperty(Config.PROPERTY_PREFIX + "replace_address", null) != null)
                 return InetAddress.getByName(System.getProperty(Config.PROPERTY_PREFIX + "replace_address", null));
             else if (System.getProperty(Config.PROPERTY_PREFIX + "replace_address_first_boot", null) != null)
                 return InetAddress.getByName(System.getProperty(Config.PROPERTY_PREFIX + "replace_address_first_boot", null));
             return null;
+        }
+        catch (UnknownHostException e)
+        {
+            throw new RuntimeException("Replacement host name could not be resolved or scope_id was specified for a global IPv6 address", e);
+        }
+    }
+
+    public static Boolean replaceAddressMatchesSaved()
+    {
+        InetAddress saved;
+        Boolean set = false;
+        try
+        {
+            if (SystemKeyspace.getBootstrapState() == SystemKeyspace.BootstrapState.REPLACEMENT_IN_PROGRESS)
+                saved = SystemKeyspace.getReplacedNode();
+            else
+                return true;
+
+            if (System.getProperty(Config.PROPERTY_PREFIX + "replace_address", null) != null)
+            {
+                set = true;
+                if (!saved.equals(InetAddress.getByName(System.getProperty(Config.PROPERTY_PREFIX + "replace_address", null))))
+                    return false;
+            }
+            if (System.getProperty(Config.PROPERTY_PREFIX + "replace_address_first_boot", null) != null)
+            {
+                set = true;
+                if (!saved.equals(InetAddress.getByName(System.getProperty(Config.PROPERTY_PREFIX + "replace_address_first_boot", null))))
+                    return false;
+            }
+            return set;
         }
         catch (UnknownHostException e)
         {

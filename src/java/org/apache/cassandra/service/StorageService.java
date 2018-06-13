@@ -492,6 +492,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private synchronized UUID prepareForReplacement() throws ConfigurationException
     {
+        //check for config error
+        if (!DatabaseDescriptor.replaceAddressMatchesSaved())
+            throw new RuntimeException("Current replace_address flag does not match saved address from previous bootstrapping attempt.");
+
         if (SystemKeyspace.bootstrapComplete())
             throw new RuntimeException("Cannot replace address with a node that is already bootstrapped");
 
@@ -890,7 +894,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (SystemKeyspace.bootstrapInProgress())
                 logger.warn("Detected previous bootstrap failure; retrying");
             else
-                SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.IN_PROGRESS);
+            {
+                if (replacing)
+                {
+                    SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.REPLACEMENT_IN_PROGRESS, DatabaseDescriptor.getReplaceAddress());
+                }
+                else
+                {
+                    SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.IN_PROGRESS);
+                }
+            }
+
             setMode(Mode.JOINING, "waiting for ring information", true);
             waitForSchema(delay);
             setMode(Mode.JOINING, "schema complete, ready to bootstrap", true);

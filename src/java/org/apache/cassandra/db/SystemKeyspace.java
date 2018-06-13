@@ -173,6 +173,7 @@ public final class SystemKeyspace
                 + "partitioner text,"
                 + "rack text,"
                 + "release_version text,"
+                + "replaced inet,"
                 + "rpc_address inet,"
                 + "schema_version uuid,"
                 + "thrift_version text,"
@@ -494,7 +495,8 @@ public final class SystemKeyspace
         NEEDS_BOOTSTRAP,
         COMPLETED,
         IN_PROGRESS,
-        DECOMMISSIONED
+        DECOMMISSIONED,
+        REPLACEMENT_IN_PROGRESS
     }
 
     public static void finishStartup()
@@ -1025,7 +1027,7 @@ public final class SystemKeyspace
 
     public static boolean bootstrapInProgress()
     {
-        return getBootstrapState() == BootstrapState.IN_PROGRESS;
+        return getBootstrapState() == BootstrapState.IN_PROGRESS || getBootstrapState() == BootstrapState.REPLACEMENT_IN_PROGRESS;
     }
 
     public static boolean wasDecommissioned()
@@ -1033,6 +1035,18 @@ public final class SystemKeyspace
         return getBootstrapState() == BootstrapState.DECOMMISSIONED;
     }
 
+    public static InetAddress getReplacedNode()
+    {
+        String req = "SELECT replaced FROM system.%s WHERE key='%s'";
+        UntypedResultSet result = executeInternal(String.format(req, LOCAL, LOCAL));
+        return result.one().getInetAddress("replaced");
+    }
+    public static void setBootstrapState(BootstrapState state, InetAddress replacing)
+    {
+        String req = "INSERT INTO system.%s (key, bootstrapped, replaced) VALUES ('%s', ?, ?)";
+        executeInternal(String.format(req, LOCAL, LOCAL), state.name(), replacing);
+        forceBlockingFlush(LOCAL);
+    }
     public static void setBootstrapState(BootstrapState state)
     {
         String req = "INSERT INTO system.%s (key, bootstrapped) VALUES ('%s', ?)";
