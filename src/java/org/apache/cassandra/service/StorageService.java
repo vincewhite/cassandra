@@ -494,7 +494,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         //check for config error
         if (!DatabaseDescriptor.replaceAddressMatchesSaved())
-            throw new RuntimeException("Current replace_address flag does not match saved address from previous bootstrapping attempt.");
+            throw new RuntimeException(String.format("Current replace_address flag does not match saved address ({}) from previous bootstrapping attempt.",DatabaseDescriptor.getReplaceAddress()));
 
         if (SystemKeyspace.bootstrapComplete())
             throw new RuntimeException("Cannot replace address with a node that is already bootstrapped");
