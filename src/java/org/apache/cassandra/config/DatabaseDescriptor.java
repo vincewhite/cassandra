@@ -62,7 +62,6 @@ import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.thrift.ThriftServer.ThriftServerType;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.xpath.operations.Bool;
 
 import org.apache.commons.lang3.StringUtils;
 
