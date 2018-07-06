@@ -766,7 +766,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
         if (isBootstrapping)
         {
-
             // these states are not allowed to join the cluster as it would not be safe
             final List<String> unsafeStatuses = new ArrayList<String>()
             {{
