@@ -746,9 +746,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                                     Map<InetAddress, EndpointState> epStates)
     {
         EndpointState epState = epStates.get(endpoint);
-        // if there's no previous state, or the node was previously removed from the cluster, we're good
-
-
+        // if there's no previous state, we're good
         if (epState == null)
             return true;
 
@@ -762,6 +760,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             return false;
         }
 
+        //the node was previously removed from the cluster
         if (isDeadState(epState))
             return true;
 
