@@ -753,7 +753,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         String status = getGossipStatus(epState);
 
         if (status.equals(VersionedValue.HIBERNATE)
-            && epState.getApplicationState(ApplicationState.TOKENS) != null
             && !SystemKeyspace.bootstrapComplete())
         {
             logger.warn("A node with the same IP in hibernate status was detected. Was a replacement already attempted?");
