@@ -44,6 +44,7 @@ import org.apache.cassandra.thrift.ThriftConversion;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.fail;
 
 import static org.junit.Assert.assertTrue;
 
@@ -285,5 +286,35 @@ public class DatabaseDescriptorTest
         assertTrue(tokens.containsAll(Arrays.asList(new String[]{"a", "b", "c", "d", "f", "g", "h"})));
 
         
+    }
+
+    @Test
+    public void testApplyInitialTokens() throws ConfigurationException
+    {
+        /**
+         * Test for CASSANDRA-14477
+         * Test that Cassandra still starts when number of tokens is not specified.
+         * Also tests that this Excepts correctly when config is incorrect.
+         */
+
+        // Tests that Cassandra still starts when number of tokens is not specified.
+        Config testConfig = DatabaseDescriptor.loadConfig();
+        testConfig.initial_token = "0,256,1024";
+        DatabaseDescriptor.setConfig(testConfig);
+        DatabaseDescriptor.applyInitialTokens();
+
+        // Tests that applyInitialTokens() Excepts when number of tokens in inital_token does not match num_tokens.
+        Config testBrokenConfig = DatabaseDescriptor.loadConfig();
+        testBrokenConfig.initial_token = "0,256,1024";
+        testBrokenConfig.num_tokens = 4;
+        DatabaseDescriptor.setConfig(testBrokenConfig);
+
+        try
+        {
+            DatabaseDescriptor.applyInitialTokens();
+            fail("Did not throw exception with incorrect config"); // Should not get here
+        } catch (ConfigurationException e) {
+            // Expecting exception
+        }
     }
 }
