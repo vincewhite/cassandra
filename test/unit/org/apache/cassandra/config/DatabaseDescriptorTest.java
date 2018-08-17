@@ -19,11 +19,18 @@
 package org.apache.cassandra.config;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.util.Enumeration;
+
+import javax.management.InstanceNotFoundException;
+import javax.management.MBeanRegistrationException;
+import javax.management.MBeanServer;
+import javax.management.MalformedObjectNameException;
+import javax.management.ObjectName;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -42,6 +49,7 @@ import org.apache.cassandra.thrift.ThriftConversion;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.fail;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class DatabaseDescriptorTest
@@ -270,5 +278,47 @@ public class DatabaseDescriptorTest
         testConfig.rpc_interface = null;
         DatabaseDescriptor.applyAddressConfig(testConfig);
 
+    }
+
+    @Test
+    public void testTokenConfigCheck() throws ConfigurationException, MalformedObjectNameException, MBeanRegistrationException, InstanceNotFoundException
+    {
+        /**
+         * Test for CASSANDRA-14477
+         * Test that Cassandra still starts when number of tokens is not specified.
+         * Also tests that this Excepts correctly when config is incorrect.
+         */
+
+        // Tests that Cassandra still starts when number of tokens is not specified.
+
+        Config testConfig = DatabaseDescriptor.loadConfig();
+        MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+
+        /**
+         * Unregistering Snitches to prevent javax.management.InstanceAlreadyExistsException
+         * when applyConfig is called a second time.
+         * (first time is in static block in DatabaseDescriptor)
+         */
+
+        mbs.unregisterMBean(new ObjectName("org.apache.cassandra.db:type=DynamicEndpointSnitch"));
+        mbs.unregisterMBean(new ObjectName("org.apache.cassandra.db:type=EndpointSnitchInfo"));
+        testConfig.initial_token = "0,256,1024";
+        DatabaseDescriptor.applyConfig(testConfig);
+
+        // Tests that applyInitialTokens() Excepts when number of tokens in inital_token does not match num_tokens.
+        Config testBrokenConfig = DatabaseDescriptor.loadConfig();
+        testBrokenConfig.initial_token = "0,256,1024";
+        testBrokenConfig.num_tokens = 4;
+
+        try
+        {
+            // Unregistering again because applyConfig was run above to test 'num_tokens not specified' condition
+            mbs.unregisterMBean(new ObjectName("org.apache.cassandra.db:type=DynamicEndpointSnitch"));
+            mbs.unregisterMBean(new ObjectName("org.apache.cassandra.db:type=EndpointSnitchInfo"));
+            DatabaseDescriptor.applyConfig(testBrokenConfig);
+            fail("Did not throw exception with incorrect config"); // Should not get here
+        } catch (ConfigurationException e) {
+            // Expecting exception
+        }
     }
 }
