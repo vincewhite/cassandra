@@ -303,6 +303,13 @@ public class DatabaseDescriptorTest
         DatabaseDescriptor.setConfig(testConfig);
         DatabaseDescriptor.applyInitialTokens();
 
+        // Tests that Cassandra still starts when number of tokens in initial_token matches num_tokens
+        Config testMatchingConfig = DatabaseDescriptor.loadConfig();
+        testMatchingConfig.initial_token = "0,256,1024";
+        testMatchingConfig.num_tokens = 3;
+        DatabaseDescriptor.setConfig(testMatchingConfig);
+        DatabaseDescriptor.applyInitialTokens();
+
         // Tests that applyInitialTokens() Excepts when number of tokens in inital_token does not match num_tokens.
         Config testBrokenConfig = DatabaseDescriptor.loadConfig();
         testBrokenConfig.initial_token = "0,256,1024";
