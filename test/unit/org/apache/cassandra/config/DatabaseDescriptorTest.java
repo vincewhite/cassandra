@@ -305,14 +305,23 @@ public class DatabaseDescriptorTest
         testConfig.initial_token = "0,256,1024";
         DatabaseDescriptor.applyConfig(testConfig);
 
-        // Tests that applyInitialTokens() Excepts when number of tokens in inital_token does not match num_tokens.
+        // Tests that applyConfig() does not Except when number of tokens in inital_token matches num_tokens.
+        Config testMatchingConfig = DatabaseDescriptor.loadConfig();
+        // Unregistering snitches gain
+        mbs.unregisterMBean(new ObjectName("org.apache.cassandra.db:type=DynamicEndpointSnitch"));
+        mbs.unregisterMBean(new ObjectName("org.apache.cassandra.db:type=EndpointSnitchInfo"));
+        testMatchingConfig.initial_token = "0,256,1024";
+        testMatchingConfig.num_tokens = 3;
+        DatabaseDescriptor.applyConfig(testMatchingConfig);
+
+        // Tests that applyConfig() Excepts when number of tokens in inital_token does not match num_tokens.
         Config testBrokenConfig = DatabaseDescriptor.loadConfig();
         testBrokenConfig.initial_token = "0,256,1024";
         testBrokenConfig.num_tokens = 4;
 
         try
         {
-            // Unregistering again because applyConfig was run above to test 'num_tokens not specified' condition
+            // Unregistering snitches again
             mbs.unregisterMBean(new ObjectName("org.apache.cassandra.db:type=DynamicEndpointSnitch"));
             mbs.unregisterMBean(new ObjectName("org.apache.cassandra.db:type=EndpointSnitchInfo"));
             DatabaseDescriptor.applyConfig(testBrokenConfig);
