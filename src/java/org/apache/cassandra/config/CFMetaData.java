@@ -41,6 +41,8 @@ import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.datastax.driver.core.ColumnMetadata;
+import com.datastax.driver.core.schemabuilder.Drop;
 import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -57,6 +59,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.*;
+import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.utils.*;
 import org.github.jamm.Unmetered;
 
@@ -1535,11 +1538,22 @@ public final class CFMetaData
         // drop timestamp, in microseconds, yet with millisecond granularity
         public final long droppedTime;
 
+        public final ColumnDefinition.Kind kind;
+
         public DroppedColumn(String name, AbstractType<?> type, long droppedTime)
         {
             this.name = name;
             this.type = type;
             this.droppedTime = droppedTime;
+            this.kind = ColumnDefinition.Kind.REGULAR;
+        }
+
+        public DroppedColumn(String name, AbstractType<?> type, long droppedTime, ColumnDefinition.Kind kind)
+        {
+            this.name = name;
+            this.type = type;
+            this.droppedTime = droppedTime;
+            this.kind = kind;
         }
 
         @Override

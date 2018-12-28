@@ -280,7 +280,7 @@ public class AlterTest extends CQLTester
         execute("insert into %s (k, v) VALUES (0, {'f'})");
         flush();
         execute("alter table %s drop v");
-        execute("alter table %s add v int");
+        execute("alter table %s add v set<text>");
     }
 
     @Test(expected = SyntaxException.class)
@@ -429,5 +429,19 @@ public class AlterTest extends CQLTester
         execute("ALTER TABLE %s DROP x");
 
         assertEmpty(execute("SELECT * FROM %s"));
+    }
+
+    /**
+     * Test that we prevent drop and re-add of a column with the same name but incompatible type (trunk behaviour backported to 3.11)
+     */
+    @Test
+    public void testReaddSameNameIncompatibleType() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, content text, myColumn int, myColumn2 map<int, int>);");
+        execute("ALTER TABLE %s DROP myColumn;");
+        assertInvalid("ALTER TABLE %s ADD myColumn map<int, int>;");
+
+        execute("ALTER TABLE %s DROP myColumn2");
+        assertInvalid("ALTER TABLE %s ADD myColumn2 int;");
     }
 }

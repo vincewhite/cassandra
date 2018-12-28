@@ -114,6 +114,23 @@ public class AlterTableStatement extends SchemaAlteringStatement
                     isStatic = colData.getStaticType();
                     validator = dataType.prepare(keyspace());
 
+                    CFMetaData.DroppedColumn dropped = cfm.getDroppedColumns().get(columnName.bytes);
+
+                    if (dropped != null)
+                    {
+
+                        if (!dropped.type.isValueCompatibleWith(dataType.prepare(cfm.ksName).getType()))
+                            throw new InvalidRequestException(String.format("Cannot re-add previously dropped column '%s' of type %s, incompatible with previous type %s",
+                                                              columnName,
+                                                              dataType.prepare(cfm.ksName).getType().asCQL3Type(),
+                                                              dropped.type.asCQL3Type()));
+
+                        if ((dropped.kind == ColumnDefinition.Kind.STATIC) != isStatic)
+                            throw new InvalidRequestException(String.format("Cannot re-add previously dropped column '%s' of kind %s, incompatible with previous kind %s",
+                               columnName,
+                               isStatic ? ColumnDefinition.Kind.STATIC : ColumnDefinition.Kind.REGULAR,
+                               dropped.kind));
+                    }
 
                     if (isStatic)
                     {
@@ -150,7 +167,6 @@ public class AlterTableStatement extends SchemaAlteringStatement
                         // If there used to be a non-frozen collection column with the same name (that has been dropped),
                         // we could still have some data using the old type, and so we can't allow adding a collection
                         // with the same name unless the types are compatible (see #6276).
-                        CFMetaData.DroppedColumn dropped = cfm.getDroppedColumns().get(columnName.bytes);
                         if (dropped != null && dropped.type instanceof CollectionType
                             && dropped.type.isMultiCell() && !type.isCompatibleWith(dropped.type))
                         {
