@@ -430,4 +430,51 @@ public class AlterTest extends CQLTester
 
         assertEmpty(execute("SELECT * FROM %s"));
     }
+
+    /**
+     * Allow adding columns to non-dense compact storage tables
+     */
+    @Test
+    public void testAddColumnNonDenseCompact() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id int, data text, PRIMARY KEY(id)) WITH COMPACT STORAGE");
+
+        execute("INSERT INTO %s (id, data) VALUES (1, 'testing')");
+        assertRows(execute("SELECT * FROM %s"), row(1,"testing"));
+
+        execute("ALTER TABLE %s ADD newColumn int");
+
+        assertRows(execute("SELECT * FROM %s"), row(1,"testing", null));
+
+        execute("INSERT INTO %s (id, data, newColumn) VALUES (2, 'testing2', 99)");
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1,"testing", null),
+                   row(2,"testing2", 99));
+
+
+        dropTable("DROP TABLE %s");
+
+        createTable("CREATE TABLE %s (id int, id2 int, data text, PRIMARY KEY((id, id2))) WITH COMPACT STORAGE");
+
+        execute("INSERT INTO %s (id, id2, data) VALUES (1, 2, 'testing')");
+        assertRows(execute("SELECT * FROM %s"), row(1, 2, "testing"));
+
+        execute("ALTER TABLE %s ADD newColumn int");
+
+        assertRows(execute("SELECT * FROM %s"), row(1, 2, "testing", null));
+
+        execute("INSERT INTO %s (id, id2, data, newColumn) VALUES (3, 4, 'testing2', 99)");
+        assertRows(execute("SELECT * FROM %s"),
+                   row(3, 4, "testing2", 99),
+                   row(1, 2, "testing", null));
+
+        assertInvalid("ALTER TABLE %s DROP data");
+    }
+
+    @Test
+    public void testRefuseToAddColumnToDenseCompact() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id int, id2 int, data text, PRIMARY KEY(id, id2)) WITH COMPACT STORAGE");
+        assertInvalid("ALTER TABLE %s ADD newColumn int");
+    }
 }

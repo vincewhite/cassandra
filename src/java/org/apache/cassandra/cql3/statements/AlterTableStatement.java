@@ -101,7 +101,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                 throw new InvalidRequestException("Altering of types is not allowed");
             case ADD:
                 if (meta.isDense())
-                    throw new InvalidRequestException("Cannot add new column to a COMPACT STORAGE table");
+                    throw new InvalidRequestException("Cannot add new column to a dense COMPACT STORAGE table");
 
                 cfm = meta.copy();
 
@@ -111,14 +111,12 @@ public class AlterTableStatement extends SchemaAlteringStatement
                     def = cfm.getColumnDefinition(columnName);
                     dataType = colData.getColumnType();
                     assert dataType != null;
-                    isStatic = colData.getStaticType();
+                    isStatic = cfm.isCompactTable() ? true : colData.getStaticType();
                     validator = dataType.prepare(keyspace());
 
 
                     if (isStatic)
                     {
-                        if (!cfm.isCompound())
-                            throw new InvalidRequestException("Static columns are not allowed in COMPACT STORAGE tables");
                         if (cfm.clusteringColumns().isEmpty())
                             throw new InvalidRequestException("Static columns are only useful (and thus allowed) if the table has at least one clustering column");
                     }
