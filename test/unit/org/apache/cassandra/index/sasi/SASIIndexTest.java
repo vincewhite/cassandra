@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.index.sasi;
 
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
@@ -68,8 +69,11 @@ import org.apache.cassandra.index.sasi.exceptions.TimeQuotaExceededException;
 import org.apache.cassandra.index.sasi.memory.IndexMemtable;
 import org.apache.cassandra.index.sasi.plan.QueryController;
 import org.apache.cassandra.index.sasi.plan.QueryPlan;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IndexSummaryManager;
 import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -89,6 +93,9 @@ import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import junit.framework.Assert;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
 
 import org.junit.*;
 
@@ -126,6 +133,61 @@ public class SASIIndexTest
     {
         Keyspace.open(KS_NAME).getColumnFamilyStore(CF_NAME).truncateBlocking();
     }
+
+    @Test
+    public void testSnapshot() throws Throwable
+    {
+
+        Map<String, Pair<String, Integer>> data = new HashMap<String, Pair<String, Integer>>()
+        {{
+            put("key1", Pair.create("Pavel", 14));
+            put("key2", Pair.create("Pavel", 26));
+            put("key3", Pair.create("Pavel", 27));
+            put("key4", Pair.create("Jason", 27));
+        }};
+
+        ColumnFamilyStore store = loadData(data, true);
+
+        takeAndCheckSnapshot(store, "sasi_test", true);
+
+        loadData(data, true);
+
+        store.forceMajorCompaction();
+
+        takeAndCheckSnapshot(store, "sasi_test", true);
+    }
+
+        public void takeAndCheckSnapshot(ColumnFamilyStore cfs, String snapshotName, boolean clearSnapshot) throws Throwable
+        {
+            Set<SSTableReader> ssTableReaders = cfs.getLiveSSTables();
+            Set<Component> sasiComponents = new HashSet<>();
+            for (Index index : cfs.indexManager.listIndexes())
+            {
+                if (index instanceof SASIIndex)
+                    sasiComponents.add(((SASIIndex) index).getIndex().getComponent());
+            }
+
+            cfs.snapshot(snapshotName);
+            JSONObject manifest = (JSONObject) new JSONParser().parse(new FileReader(cfs.getDirectories().getSnapshotManifestFile(snapshotName)));
+            JSONArray files = (JSONArray) manifest.get("files");
+            Assert.assertEquals(ssTableReaders.size(), files.size());
+            Map<Descriptor, Set<Component>> snapshots = cfs.getDirectories().sstableLister(Directories.OnTxnErr.IGNORE).snapshots(snapshotName).list();
+            for (SSTableReader sstable : ssTableReaders)
+            {
+                Descriptor tmp = new Descriptor(Directories.getSnapshotDirectory(sstable.descriptor, snapshotName),
+                                                sstable.getKeyspaceName(),
+                                                sstable.getColumnFamilyName(),
+                                                sstable.descriptor.generation,
+                                                sstable.descriptor.formatType);
+
+                Set<Component> components = snapshots.get(tmp);
+                Assert.assertNotNull(components);
+                Assert.assertTrue(components.containsAll(sasiComponents));
+            }
+
+            if (clearSnapshot)
+                cfs.clearSnapshot(snapshotName);
+        }
 
     @Test
     public void testSingleExpressionQueries() throws Exception
