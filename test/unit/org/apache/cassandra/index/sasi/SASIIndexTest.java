@@ -135,6 +135,36 @@ public class SASIIndexTest
         testSingleExpressionQueries(true);
     }
 
+    @Test
+    public void testIllegalArgumentsException() throws Throwable
+    {
+        String baseTable = "illegal_argument_test";
+        String indexName = "illegal_index";
+        QueryProcessor.executeOnceInternal(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}", KS_NAME));
+        QueryProcessor.executeOnceInternal(String.format("CREATE TABLE IF NOT EXISTS %s.%s (k int primary key, v text);", KS_NAME, baseTable));
+
+        try
+        {
+            QueryProcessor.executeOnceInternal(String.format("CREATE CUSTOM INDEX IF NOT EXISTS %s ON %s.%s(v) " +
+                                                             "USING 'org.apache.cassandra.index.sasi.SASIIndex' WITH OPTIONS = { 'mode' : 'CONTAINS', " +
+                                                             "'analyzer_class': 'org.apache.cassandra.index.sasi.analyzer.NonTokenizingAnalyzer', " +
+                                                             "'case_sensitive': 'false'," +
+                                                             "'normalize_uppercase': 'true'};",
+                                                             indexName, KS_NAME, baseTable));
+        }
+        catch (ConfigurationException e)
+        {
+            //correct behaviour
+            //confirm that it wasn't written to the schema
+            Assert.assertTrue(QueryProcessor.executeOnceInternal(String.format("SELECT * FROM system_schema.indexes WHERE keyspace_name = '%s' " +
+                                                             "and table_name = '%s' and index_name = '%s';", KS_NAME, baseTable, indexName)).isEmpty());
+        }
+        finally
+        {
+            QueryProcessor.executeOnceInternal(String.format("DROP TABLE %s.%s;", KS_NAME, baseTable));
+        }
+    }
+
     private void testSingleExpressionQueries(boolean forceFlush) throws Exception
     {
         Map<String, Pair<String, Integer>> data = new HashMap<String, Pair<String, Integer>>()

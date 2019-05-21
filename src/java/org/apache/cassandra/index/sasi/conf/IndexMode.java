@@ -117,11 +117,16 @@ public class IndexMode
                     throw new ConfigurationException(String.format("%s does not support type %s",
                                                                    analyzerClass.getSimpleName(),
                                                                    cd.type.asCQL3Type()));
+                analyzer.init(indexOptions, cd.cellValueType());
             }
             catch (InstantiationException | IllegalAccessException e)
             {
                 throw new ConfigurationException(String.format("Unable to initialize analyzer class option specified [%s]",
                                                                analyzerClass.getSimpleName()));
+            }
+            catch (IllegalArgumentException e)
+            {
+                throw new ConfigurationException(e.getMessage());
             }
         }
     }
