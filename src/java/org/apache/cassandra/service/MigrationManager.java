@@ -54,6 +54,15 @@ public class MigrationManager
     private static final Logger logger = LoggerFactory.getLogger(MigrationManager.class);
 
     public static final MigrationManager instance = new MigrationManager();
+    private static final Comparator<InetAddress> inetcomparator = new Comparator<InetAddress>()
+    {
+        public int compare(InetAddress addr1, InetAddress addr2)
+        {
+            return addr1.getHostAddress().compareTo(addr2.getHostAddress());
+        }
+    };
+
+    private static final Set<InetAddress> infFlightRequests = new ConcurrentSkipListSet<InetAddress>(inetcomparator);
 
     private static final RuntimeMXBean runtimeMXBean = ManagementFactory.getRuntimeMXBean();
 
@@ -653,6 +662,16 @@ public class MigrationManager
         }
 
         logger.info("Local schema reset is complete.");
+    }
+
+    public boolean hasInFlightRequest(InetAddress ep)
+    {
+        return infFlightRequests.add(ep);
+    }
+
+    public boolean completedInFlightRequest(InetAddress ep)
+    {
+        return infFlightRequests.remove(ep);
     }
 
     public static class MigrationsSerializer implements IVersionedSerializer<Collection<Mutation>>

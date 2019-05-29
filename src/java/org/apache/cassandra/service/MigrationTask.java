@@ -31,8 +31,10 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.SystemKeyspace.BootstrapState;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.net.IAsyncCallback;
+import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
@@ -71,9 +73,16 @@ class MigrationTask extends WrappedRunnable
         // There is a chance that quite some time could have passed between now and the MM#maybeScheduleSchemaPull(),
         // potentially enough for the endpoint node to restart - which is an issue if it does restart upgraded, with
         // a higher major.
+
         if (!MigrationManager.shouldPullSchemaFrom(endpoint))
         {
             logger.info("Skipped sending a migration request: node {} has a higher major version now.", endpoint);
+            return;
+        }
+
+        if (!MigrationManager.instance.hasInFlightRequest(endpoint))
+        {
+            logger.info("Skipped sending a migration request: node {} already has a request in flight", endpoint);
             return;
         }
 
@@ -81,7 +90,7 @@ class MigrationTask extends WrappedRunnable
 
         final CountDownLatch completionLatch = new CountDownLatch(1);
 
-        IAsyncCallback<Collection<Mutation>> cb = new IAsyncCallback<Collection<Mutation>>()
+        IAsyncCallbackWithFailure<Collection<Mutation>>cb = new IAsyncCallbackWithFailure<Collection<Mutation>>()
         {
             @Override
             public void response(MessageIn<Collection<Mutation>> message)
@@ -96,6 +105,7 @@ class MigrationTask extends WrappedRunnable
                 }
                 finally
                 {
+                    MigrationManager.instance.completedInFlightRequest(endpoint);
                     completionLatch.countDown();
                 }
             }
@@ -104,12 +114,17 @@ class MigrationTask extends WrappedRunnable
             {
                 return false;
             }
+
+            public void onFailure(InetAddress from, RequestFailureReason failureReason)
+            {
+                MigrationManager.instance.completedInFlightRequest(endpoint);
+            }
         };
 
         // Only save the latches if we need bootstrap or are bootstrapping
         if (monitoringBootstrapStates.contains(SystemKeyspace.getBootstrapState()))
             inflightTasks.offer(completionLatch);
 
-        MessagingService.instance().sendRR(message, endpoint, cb);
+        MessagingService.instance().sendRR(message, endpoint, cb, message.getTimeout(), true);
     }
 }
