@@ -674,6 +674,11 @@ public class MigrationManager
         return infFlightRequests.remove(ep);
     }
 
+    public int getMigrationTaskWaitInSeconds()
+    {
+        return MIGRATION_TASK_WAIT_IN_SECONDS;
+    }
+
     public static class MigrationsSerializer implements IVersionedSerializer<Collection<Mutation>>
     {
         public static MigrationsSerializer instance = new MigrationsSerializer();

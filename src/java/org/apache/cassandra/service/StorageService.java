@@ -873,6 +873,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             setMode(Mode.JOINING, "waiting for schema information to complete", true);
             MigrationManager.waitUntilReadyForBootstrap();
         }
+
+        while (Schema.instance.isEmpty())
+        {
+            for(InetAddress endpoint : Gossiper.instance.getLiveTokenOwners())
+            {
+                MigrationManager.scheduleSchemaPull(endpoint, Gossiper.instance.getEndpointStateForEndpoint(endpoint));
+                Uninterruptibles.sleepUninterruptibly(DatabaseDescriptor.getMinRpcTimeout() + (MigrationManager.instance.getMigrationTaskWaitInSeconds() * 1000), TimeUnit.MILLISECONDS);
+                if (!Schema.instance.isEmpty())
+                    break;
+            }
+        }
+
     }
 
     private void joinTokenRing(int delay) throws ConfigurationException
