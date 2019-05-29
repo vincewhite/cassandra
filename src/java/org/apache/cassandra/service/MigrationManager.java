@@ -664,14 +664,19 @@ public class MigrationManager
         logger.info("Local schema reset is complete.");
     }
 
-    public boolean hasInFlightRequest(InetAddress ep)
+    public boolean addInFlightSchemaRequest(InetAddress ep)
     {
         return infFlightRequests.add(ep);
     }
 
-    public boolean completedInFlightRequest(InetAddress ep)
+    public boolean completedInFlightSchemaRequest(InetAddress ep)
     {
         return infFlightRequests.remove(ep);
+    }
+
+    public boolean hasInFlighSchemaRequest(InetAddress ep)
+    {
+        return infFlightRequests.contains(ep);
     }
 
     public int getMigrationTaskWaitInSeconds()

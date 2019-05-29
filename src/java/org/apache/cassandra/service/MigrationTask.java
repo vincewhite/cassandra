@@ -80,7 +80,7 @@ class MigrationTask extends WrappedRunnable
             return;
         }
 
-        if (!MigrationManager.instance.hasInFlightRequest(endpoint))
+        if (!MigrationManager.instance.addInFlightSchemaRequest(endpoint))
         {
             logger.info("Skipped sending a migration request: node {} already has a request in flight", endpoint);
             return;
@@ -105,7 +105,7 @@ class MigrationTask extends WrappedRunnable
                 }
                 finally
                 {
-                    MigrationManager.instance.completedInFlightRequest(endpoint);
+                    MigrationManager.instance.completedInFlightSchemaRequest(endpoint);
                     completionLatch.countDown();
                 }
             }
@@ -118,7 +118,7 @@ class MigrationTask extends WrappedRunnable
             public void onFailure(InetAddress from, RequestFailureReason failureReason)
             {
                 logger.error("Timedout waiting for schema response from {}", endpoint);
-                MigrationManager.instance.completedInFlightRequest(endpoint);
+                MigrationManager.instance.completedInFlightSchemaRequest(endpoint);
             }
         };
 
