@@ -117,6 +117,7 @@ class MigrationTask extends WrappedRunnable
 
             public void onFailure(InetAddress from, RequestFailureReason failureReason)
             {
+                logger.error("Timeedout waiting for schema response from {}", endpoint);
                 MigrationManager.instance.completedInFlightRequest(endpoint);
             }
         };
