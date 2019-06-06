@@ -867,18 +867,41 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         //we didn't get a schema by ring_delay
-        while (Schema.instance.isEmpty())
+        while (true)
         {
-            setMode(Mode.JOINING, "waiting for schema information to complete", true);
+            setMode(Mode.JOINING, "waiting for schema information to complete, resending schema requests", true);
             for(InetAddress endpoint : Gossiper.instance.getLiveTokenOwners())
             {
                 MigrationManager.scheduleSchemaPull(endpoint, Gossiper.instance.getEndpointStateForEndpoint(endpoint));
                 Uninterruptibles.sleepUninterruptibly(DatabaseDescriptor.getMinRpcTimeout() + (MigrationManager.instance.getMigrationTaskWaitInSeconds() * 1000), TimeUnit.MILLISECONDS);
-                if (!Schema.instance.isEmpty())
-                    break;
+                if ((!Schema.instance.isEmpty() && !Boolean.parseBoolean(System.getProperty("cassandra.wait_for_schema_agreement", "false")))
+                    || hasMajoritySchema())
+                    return; //has a schema and wait_for_schema_agreement=false, or we have the majority schema version
             }
         }
+    }
 
+    private boolean hasMajoritySchema()
+    {
+        Map<UUID, Integer> counts = new HashMap<>();
+        int total = 0;
+        UUID quorum = null;
+        for (InetAddress endpoint : Gossiper.instance.getLiveTokenOwners())
+        {
+            total++;
+            UUID version = Gossiper.instance.getSchemaVersion(endpoint);
+            if (counts.containsKey(version))
+                counts.put(version, counts.get(version) + 1);
+        }
+
+        for (Entry<UUID, Integer> schema : counts.entrySet())
+        {
+            if (schema.getValue() > total / 2)
+            {
+                return Schema.instance.getVersion().equals(schema.getKey());
+            }
+        }
+        return false;
     }
 
     private void joinTokenRing(int delay) throws ConfigurationException
