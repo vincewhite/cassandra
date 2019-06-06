@@ -865,17 +865,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
             Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
         }
-        // if our schema hasn't matched yet, wait until it has
-        // we do this by waiting for all in-flight migration requests and responses to complete
-        // (post CASSANDRA-1391 we don't expect this to be necessary very often, but it doesn't hurt to be careful)
-        if (!MigrationManager.isReadyForBootstrap())
-        {
-            setMode(Mode.JOINING, "waiting for schema information to complete", true);
-            MigrationManager.waitUntilReadyForBootstrap();
-        }
 
+        //we didn't get a schema by ring_delay
         while (Schema.instance.isEmpty())
         {
+            setMode(Mode.JOINING, "waiting for schema information to complete", true);
             for(InetAddress endpoint : Gossiper.instance.getLiveTokenOwners())
             {
                 MigrationManager.scheduleSchemaPull(endpoint, Gossiper.instance.getEndpointStateForEndpoint(endpoint));

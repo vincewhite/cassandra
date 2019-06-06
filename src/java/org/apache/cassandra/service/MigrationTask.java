@@ -46,8 +46,6 @@ class MigrationTask extends WrappedRunnable
 {
     private static final Logger logger = LoggerFactory.getLogger(MigrationTask.class);
 
-    private static final ConcurrentLinkedQueue<CountDownLatch> inflightTasks = new ConcurrentLinkedQueue<>();
-
     private static final Set<BootstrapState> monitoringBootstrapStates = EnumSet.of(BootstrapState.NEEDS_BOOTSTRAP, BootstrapState.IN_PROGRESS);
 
     private final InetAddress endpoint;
@@ -57,10 +55,6 @@ class MigrationTask extends WrappedRunnable
         this.endpoint = endpoint;
     }
 
-    public static ConcurrentLinkedQueue<CountDownLatch> getInflightTasks()
-    {
-        return inflightTasks;
-    }
 
     public void runMayThrow() throws Exception
     {
@@ -88,7 +82,6 @@ class MigrationTask extends WrappedRunnable
 
         MessageOut message = new MessageOut<>(MessagingService.Verb.MIGRATION_REQUEST, null, MigrationManager.MigrationsSerializer.instance);
 
-        final CountDownLatch completionLatch = new CountDownLatch(1);
 
         IAsyncCallbackWithFailure<Collection<Mutation>>cb = new IAsyncCallbackWithFailure<Collection<Mutation>>()
         {
@@ -106,7 +99,6 @@ class MigrationTask extends WrappedRunnable
                 finally
                 {
                     MigrationManager.instance.completedInFlightSchemaRequest(endpoint);
-                    completionLatch.countDown();
                 }
             }
 
@@ -122,9 +114,6 @@ class MigrationTask extends WrappedRunnable
             }
         };
 
-        // Only save the latches if we need bootstrap or are bootstrapping
-        if (monitoringBootstrapStates.contains(SystemKeyspace.getBootstrapState()))
-            inflightTasks.offer(completionLatch);
 
         MessagingService.instance().sendRR(message, endpoint, cb, message.getTimeout(), true);
     }
