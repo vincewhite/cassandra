@@ -867,16 +867,25 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         //we didn't get a schema by ring_delay
-        while (true)
+        boolean waitForMajority = Boolean.parseBoolean(System.getProperty("cassandra.wait_for_schema_agreement", "false"));
+        while (Schema.instance.isEmpty() || waitForMajority)
         {
+            if (hasMajoritySchema())
+            {
+                logger.info("Has majority 1");
+                return;
+            }
             setMode(Mode.JOINING, "waiting for schema information to complete, resending schema requests", true);
             for(InetAddress endpoint : Gossiper.instance.getLiveTokenOwners())
             {
+                logger.info("Resend: %s", endpoint.toString());
                 MigrationManager.scheduleSchemaPull(endpoint, Gossiper.instance.getEndpointStateForEndpoint(endpoint));
                 Uninterruptibles.sleepUninterruptibly(DatabaseDescriptor.getMinRpcTimeout() + (MigrationManager.instance.getMigrationTaskWaitInSeconds() * 1000), TimeUnit.MILLISECONDS);
-                if ((!Schema.instance.isEmpty() && !Boolean.parseBoolean(System.getProperty("cassandra.wait_for_schema_agreement", "false")))
-                    || hasMajoritySchema())
-                    return; //has a schema and wait_for_schema_agreement=false, or we have the majority schema version
+                if ((!Schema.instance.isEmpty() && !waitForMajority) || hasMajoritySchema())
+                { //has a schema and wait_for_schema_agreement=false, or we have the majority schema version
+                    logger.info("Has majority 2");
+                    return;
+                }
             }
         }
     }
@@ -896,6 +905,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         for (Entry<UUID, Integer> schema : counts.entrySet())
         {
+            logger.info("Schema : %s, count: %d", schema.getKey().toString(), schema.getValue());
             if (schema.getValue() > total / 2)
             {
                 return Schema.instance.getVersion().equals(schema.getKey());
