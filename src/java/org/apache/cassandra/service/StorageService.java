@@ -868,8 +868,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         //we didn't get a schema by ring_delay
         boolean waitForMajority = Boolean.parseBoolean(System.getProperty("cassandra.wait_for_schema_agreement", "false"));
+        logger.info("got schema: {}", Schema.instance.getVersion());
+        //hasMajoritySchema();
+        //wait for LiveTokenOwners to be populated?
         while (Schema.instance.isEmpty() || waitForMajority)
         {
+            logger.info("Top");
             if (hasMajoritySchema())
             {
                 logger.info("Has majority 1");
@@ -878,7 +882,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             setMode(Mode.JOINING, "waiting for schema information to complete, resending schema requests", true);
             for(InetAddress endpoint : Gossiper.instance.getLiveTokenOwners())
             {
-                logger.info("Resend: %s", endpoint.toString());
+                logger.info("Resend: {}", endpoint.toString());
                 MigrationManager.scheduleSchemaPull(endpoint, Gossiper.instance.getEndpointStateForEndpoint(endpoint));
                 Uninterruptibles.sleepUninterruptibly(DatabaseDescriptor.getMinRpcTimeout() + (MigrationManager.instance.getMigrationTaskWaitInSeconds() * 1000), TimeUnit.MILLISECONDS);
                 if ((!Schema.instance.isEmpty() && !waitForMajority) || hasMajoritySchema())
@@ -887,6 +891,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     return;
                 }
             }
+            Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
         }
     }
 
@@ -895,19 +900,25 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Map<UUID, Integer> counts = new HashMap<>();
         int total = 0;
         UUID quorum = null;
+        logger.info("0");
         for (InetAddress endpoint : Gossiper.instance.getLiveTokenOwners())
         {
             total++;
             UUID version = Gossiper.instance.getSchemaVersion(endpoint);
+            logger.info("1:{} ; schema: {}", endpoint, version);
             if (counts.containsKey(version))
                 counts.put(version, counts.get(version) + 1);
+            else
+                counts.put(version, 1);
         }
 
+        logger.info("2");
         for (Entry<UUID, Integer> schema : counts.entrySet())
         {
-            logger.info("Schema : %s, count: %d", schema.getKey().toString(), schema.getValue());
+            logger.info("Schema : {}, count: {}", schema.getKey().toString(), schema.getValue());
             if (schema.getValue() > total / 2)
             {
+                logger.info("Found magjority");
                 return Schema.instance.getVersion().equals(schema.getKey());
             }
         }
