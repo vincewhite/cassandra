@@ -869,7 +869,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         //we didn't get a schema by ring_delay
         boolean waitForMajority = Boolean.parseBoolean(System.getProperty("cassandra.wait_for_schema_agreement", "false"));
         logger.info("got schema: {}", Schema.instance.getVersion());
-        //hasMajoritySchema();
+        hasMajoritySchema();
         //wait for LiveTokenOwners to be populated?
         while (Schema.instance.isEmpty() || waitForMajority)
         {
@@ -891,6 +891,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     return;
                 }
             }
+                    //wait for LiveTokenOwners to be populated?
             Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
         }
     }
@@ -899,7 +900,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         Map<UUID, Integer> counts = new HashMap<>();
         int total = 0;
-        UUID quorum = null;
         logger.info("0");
         for (InetAddress endpoint : Gossiper.instance.getLiveTokenOwners())
         {

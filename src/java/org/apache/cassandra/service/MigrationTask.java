@@ -33,6 +33,7 @@ import org.apache.cassandra.db.SystemKeyspace.BootstrapState;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.net.IAsyncCallback;
 import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.MessageIn;
@@ -74,7 +75,7 @@ class MigrationTask extends WrappedRunnable
             return;
         }
 
-        if (!MigrationManager.instance.addInFlightSchemaRequest(endpoint))
+        if (monitoringBootstrapStates.contains(SystemKeyspace.getBootstrapState()) && !MigrationManager.instance.addInFlightSchemaRequest(endpoint))
         {
             logger.info("Skipped sending a migration request: node {} already has a request in flight", endpoint);
             return;
@@ -113,8 +114,6 @@ class MigrationTask extends WrappedRunnable
                 MigrationManager.instance.completedInFlightSchemaRequest(endpoint);
             }
         };
-
-
         MessagingService.instance().sendRR(message, endpoint, cb, message.getTimeout(), true);
     }
 }
