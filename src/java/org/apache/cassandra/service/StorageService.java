@@ -866,14 +866,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
         }
 
-        //we didn't get a schema by ring_delay
         boolean waitForMajority = Boolean.parseBoolean(System.getProperty("cassandra.wait_for_schema_agreement", "true"));
         logger.info("got schema: {}", Schema.instance.getVersion());
         //hasMajoritySchema();
         //wait for LiveTokenOwners to be populated?
         while (Schema.instance.isEmpty() || waitForMajority)
         {
-            logger.info("Top");
             if (hasMajoritySchema())
             {
                 logger.info("Has majority 1");
@@ -887,8 +885,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 MigrationManager.scheduleSchemaPull(endpoint, Gossiper.instance.getEndpointStateForEndpoint(endpoint));
                 Uninterruptibles.sleepUninterruptibly(DatabaseDescriptor.getMinRpcTimeout() + (MigrationManager.instance.getMigrationTaskWaitInSeconds() * 1000), TimeUnit.MILLISECONDS);
                 if ((!Schema.instance.isEmpty() && !waitForMajority))
-                { //has a schema and wait_for_schema_agreement=false, or we have the majority schema version
-                    logger.info("Got something not waiting for majority");
+                { //has a schema and wait_for_schema_agreement=false
+                    logger.info("Got something, not waiting for majority");
                     return;
                 }
                 if (hasMajoritySchema())
@@ -902,6 +900,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
+    //replace with check for complete agreement among live nodes
     private boolean hasMajoritySchema()
     {
         Map<UUID, Integer> counts = new HashMap<>();

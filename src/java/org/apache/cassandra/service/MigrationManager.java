@@ -121,7 +121,7 @@ public class MigrationManager
         }
         if (!shouldPullSchemaFrom(endpoint))
         {
-            logger.debug("Not pulling schema because versions match or shouldPullSchemaFrom returned false");
+            logger.debug("Not pulling schema because shouldPullSchemaFrom returned false");
             return;
         }
 
