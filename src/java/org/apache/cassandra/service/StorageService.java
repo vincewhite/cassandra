@@ -867,9 +867,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         //we didn't get a schema by ring_delay
-        boolean waitForMajority = Boolean.parseBoolean(System.getProperty("cassandra.wait_for_schema_agreement", "false"));
+        boolean waitForMajority = Boolean.parseBoolean(System.getProperty("cassandra.wait_for_schema_agreement", "true"));
         logger.info("got schema: {}", Schema.instance.getVersion());
-        hasMajoritySchema();
+        //hasMajoritySchema();
         //wait for LiveTokenOwners to be populated?
         while (Schema.instance.isEmpty() || waitForMajority)
         {
@@ -879,14 +879,20 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 logger.info("Has majority 1");
                 return;
             }
+            //should just wait for inflight requests, rather than sending more requests, should just track the first set of requests we send
             setMode(Mode.JOINING, "waiting for schema information to complete, resending schema requests", true);
             for(InetAddress endpoint : Gossiper.instance.getLiveTokenOwners())
             {
                 logger.info("Resend: {}", endpoint.toString());
                 MigrationManager.scheduleSchemaPull(endpoint, Gossiper.instance.getEndpointStateForEndpoint(endpoint));
                 Uninterruptibles.sleepUninterruptibly(DatabaseDescriptor.getMinRpcTimeout() + (MigrationManager.instance.getMigrationTaskWaitInSeconds() * 1000), TimeUnit.MILLISECONDS);
-                if ((!Schema.instance.isEmpty() && !waitForMajority) || hasMajoritySchema())
+                if ((!Schema.instance.isEmpty() && !waitForMajority))
                 { //has a schema and wait_for_schema_agreement=false, or we have the majority schema version
+                    logger.info("Got something not waiting for majority");
+                    return;
+                }
+                if (hasMajoritySchema())
+                {
                     logger.info("Has majority 2");
                     return;
                 }
@@ -918,7 +924,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.info("Schema : {}, count: {}", schema.getKey().toString(), schema.getValue());
             if (schema.getValue() > total / 2)
             {
-                logger.info("Found magjority");
+                logger.info("Found majority");
                 return Schema.instance.getVersion().equals(schema.getKey());
             }
         }
