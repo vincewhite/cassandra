@@ -401,9 +401,9 @@ public class PartitionUpdate extends AbstractBTreePartition
             }
         }
 
-        if (this.holder.staticRow != null)
+        if (holder.staticRow != null)
         {
-            for (ColumnData cd : this.holder.staticRow.columnData())
+            for (ColumnData cd : holder.staticRow.columnData())
             {
                 if (cd.column().isSimple())
                 {
