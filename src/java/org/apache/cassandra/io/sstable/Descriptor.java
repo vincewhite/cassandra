@@ -84,14 +84,7 @@ public class Descriptor
     {
         assert version != null && directory != null && ksname != null && cfname != null && formatType.info.getLatestVersion().getClass().equals(version.getClass());
         this.version = version;
-        try
-        {
-            this.directory = directory.getCanonicalFile();
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
+        this.directory = directory.getAbsoluteFile();
         this.ksname = ksname;
         this.cfname = cfname;
         this.generation = generation;
