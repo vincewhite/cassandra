@@ -90,14 +90,7 @@ public class Descriptor
     {
         assert version != null && directory != null && ksname != null && cfname != null && formatType.info.getLatestVersion().getClass().equals(version.getClass());
         this.version = version;
-        try
-        {
-            this.directory = directory.getCanonicalFile();
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
+        this.directory = directory.getAbsoluteFile();
         this.ksname = ksname;
         this.cfname = cfname;
         this.generation = generation;
@@ -303,14 +296,14 @@ public class Descriptor
             String[] basePaths = new String[locations.length];
             for(int i = 0; i < locations.length; i++)
             {
-                basePaths[i] = FileUtils.getCanonicalPath(locations[i]);
+                basePaths[i] = new File(locations[i]).getAbsolutePath();
             }
             Arrays.sort(basePaths, Comparator.comparingInt(String::length).reversed());
 
             for(int i = 0; i < locations.length; i++)
             {
                 //use longest match
-                String filePath = FileUtils.getCanonicalPath(parentDirectory);
+                String filePath =parentDirectory.getAbsolutePath();
                 if (filePath.startsWith(basePaths[i]))
                 {
                     String path[] = filePath.split(basePaths[i],2)[1].split(File.separator);
