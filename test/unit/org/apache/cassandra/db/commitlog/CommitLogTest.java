@@ -119,7 +119,7 @@ public abstract class CommitLogTest
                                                              "c2 frozen<set<text>>," +
                                                              "s int static," +
                                                              "PRIMARY KEY (k, c1, c2)" +
-                                                             ");", CUSTOM1),KEYSPACE1);
+                                                             ");", CUSTOM1), KEYSPACE1);
 
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
@@ -825,6 +825,7 @@ public abstract class CommitLogTest
         // Currently we don't attempt to re-flush a memtable that failed, thus make sure data is replayed by commitlog.
         // If retries work subsequent flushes should clear up error and this should change to expect 0.
         Assert.assertEquals(1, CommitLog.instance.resetUnsafe(false));
+        System.clearProperty("cassandra.replayList");
     }
 
     public void testOutOfOrderFlushRecovery(BiConsumer<ColumnFamilyStore, Memtable> flushAction, boolean performCompaction)
@@ -859,6 +860,7 @@ public abstract class CommitLogTest
         // persisted all data in the commit log. Because we know there was an error, there must be something left to
         // replay.
         Assert.assertEquals(1, CommitLog.instance.resetUnsafe(false));
+        System.clearProperty("cassandra.replayList");
     }
 
     BiConsumer<ColumnFamilyStore, Memtable> flush = (cfs, current) ->
