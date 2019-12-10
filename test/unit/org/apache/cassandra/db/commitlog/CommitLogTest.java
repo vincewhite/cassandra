@@ -38,6 +38,7 @@ import org.junit.runners.Parameterized.Parameters;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.io.compress.ZstdCompressor;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.TableId;
@@ -113,13 +114,14 @@ public abstract class CommitLogTest
 
         SchemaLoader.prepareServer();
 
-        CFMetaData custom = CFMetaData.compile(String.format("CREATE TABLE \"%s\" (" +
-                                                             "k int," +
-                                                             "c1 frozen<map<text, text>>," +
-                                                             "c2 frozen<set<text>>," +
-                                                             "s int static," +
-                                                             "PRIMARY KEY (k, c1, c2)" +
-                                                             ");", CUSTOM1), KEYSPACE1);
+        TableMetadata.Builder custom = CreateTableStatement.parse(String.format("CREATE TABLE \"%s\" (" +
+                                                 "k int," +
+                                                 "c1 frozen<map<text, text>>," +
+                                                 "c2 frozen<set<text>>," +
+                                                 "s int static," +
+                                                 "PRIMARY KEY (k, c1, c2)" +
+                                                 ");", CUSTOM1), KEYSPACE1);
+
 
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
@@ -919,7 +921,7 @@ public abstract class CommitLogTest
     {
 
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CUSTOM1);
-        RowUpdateBuilder rb = new RowUpdateBuilder(cfs.metadata, 0, 1);
+        RowUpdateBuilder rb = new RowUpdateBuilder(cfs.metadata(), 0, 1);
 
         rb.add("s", 2);
 
