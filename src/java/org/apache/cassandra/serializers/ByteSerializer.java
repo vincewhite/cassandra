@@ -38,8 +38,8 @@ public class ByteSerializer implements TypeSerializer<Byte>
 
     public void validate(ByteBuffer bytes) throws MarshalException
     {
-        if (bytes.remaining() != 1)
-            throw new MarshalException(String.format("Expected 1 byte for a tinyint (%d)", bytes.remaining()));
+        if (bytes.remaining() != 1 && bytes.remaining() != 0)
+            throw new MarshalException(String.format("Expected 1 or 0 bytes for a tinyint (%d)", bytes.remaining()));
     }
 
     public String toString(Byte value)

@@ -38,8 +38,8 @@ public class ShortSerializer implements TypeSerializer<Short>
 
     public void validate(ByteBuffer bytes) throws MarshalException
     {
-        if (bytes.remaining() != 2)
-            throw new MarshalException(String.format("Expected 2 bytes for a smallint (%d)", bytes.remaining()));
+        if (bytes.remaining() != 2 && bytes.remaining() != 0)
+            throw new MarshalException(String.format("Expected 2 or 0 bytes for a smallint (%d)", bytes.remaining()));
     }
 
     public String toString(Short value)
