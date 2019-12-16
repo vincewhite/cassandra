@@ -123,7 +123,7 @@ public class CommitLogTest
         ArrayList<CFMetaData> customNative = new ArrayList();
         for (CQL3Type.Native type : CQL3Type.Native.values())
         {
-            if (type == CQL3Type.Native.COUNTER || type == CQL3Type.Native.EMPTY)
+            if (type == CQL3Type.Native.COUNTER || type == CQL3Type.Native.EMPTY || type == CQL3Type.Native.DURATION)
                 continue;
             customNative.add(CFMetaData.compile(String.format("CREATE TABLE \"%s\" (" +
                                                               "k int," +
