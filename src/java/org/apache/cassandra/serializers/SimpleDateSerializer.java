@@ -108,8 +108,8 @@ public class SimpleDateSerializer implements TypeSerializer<Integer>
 
     public void validate(ByteBuffer bytes) throws MarshalException
     {
-        if (bytes.remaining() != 4)
-            throw new MarshalException(String.format("Expected 4 byte long for date (%d)", bytes.remaining()));
+        if (bytes.remaining() != 4 && bytes.remaining() != 0)
+            throw new MarshalException(String.format("Expected 4 or 0 byte long for date (%d)", bytes.remaining()));
     }
 
     public String toString(Integer value)

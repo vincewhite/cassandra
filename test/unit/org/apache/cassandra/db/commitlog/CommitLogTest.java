@@ -21,6 +21,7 @@ package org.apache.cassandra.db.commitlog;
 
 import java.io.*;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -44,6 +45,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLogReplayer.CommitLogReplayException;
@@ -67,6 +69,7 @@ public class CommitLogTest
 {
     private static final String KEYSPACE1 = "CommitLogTest";
     private static final String KEYSPACE2 = "CommitLogTestNonDurable";
+    private static final String KEYSPACE3 = "CommitLogTestStatic";
     private static final String CF1 = "Standard1";
     private static final String CF2 = "Standard2";
     private static final String CF3 = "Custom1";
@@ -102,13 +105,28 @@ public class CommitLogTest
                                                              "c2 frozen<set<text>>," +
                                                              "s int static," +
                                                              "PRIMARY KEY (k, c1, c2)" +
-                                                             ");", CF3),KEYSPACE1);
+                                                             ");", CF3), KEYSPACE1);
+
+        ArrayList<CFMetaData> customNative = new ArrayList();
+        for (CQL3Type.Native type : CQL3Type.Native.values())
+        {
+            if (type == CQL3Type.Native.COUNTER)
+                continue;
+            customNative.add(CFMetaData.compile(String.format("CREATE TABLE \"%s\" (" +
+                                             "k int," +
+                                             "c1 %s," +
+                                             "s int static," +
+                                             "PRIMARY KEY (k, c1)" +
+                                             ");", "clustering_with_" + type.toString(), type.toString()), KEYSPACE3));
+        }
+
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     SimpleStrategy.class,
                                     KSMetaData.optsWithRF(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF2),
                                     custom);
+
         SchemaLoader.createKeyspace(KEYSPACE2,
                                     false,
                                     true,
@@ -116,6 +134,11 @@ public class CommitLogTest
                                     KSMetaData.optsWithRF(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF2));
+
+        SchemaLoader.createKeyspace(KEYSPACE3,
+                                    SimpleStrategy.class,
+                                    KSMetaData.optsWithRF(1),
+                                    customNative.toArray(new CFMetaData[0]));
 
         CompactionManager.instance.disableAutoCompaction();
     }
@@ -539,7 +562,51 @@ public class CommitLogTest
             System.clearProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY);
         }
 
-        Assert.assertEquals(replayed, 1);
+        Assert.assertEquals(1, replayed);
+    }
 
+    @Test
+    public void testRecoveryWithNativeClusteringKeysStatic() throws Exception
+    {
+        boolean failed = false;
+        for (String cfName : Schema.instance.getKSMetaData(KEYSPACE3).cfMetaData().keySet())
+        {
+            if (!recoveryWithStatic(KEYSPACE3, cfName))
+            {
+                failed = true;
+                System.out.println("Failed to replay column family: " + cfName);
+            }
+        }
+
+        Assert.assertEquals(false, failed);
+    }
+
+    public boolean recoveryWithStatic(String keyspace, String columnFamily) throws Exception
+    {
+        Mutation rm = new Mutation(keyspace, bytes(0));
+
+        CFMetaData cfm = Schema.instance.getCFMetaData(keyspace, columnFamily);
+
+        int clusterSize = cfm.comparator.clusteringPrefixSize();
+        ByteBuffer[] elements = new ByteBuffer[clusterSize];
+        for (int i = 0; i < clusterSize; i++)
+            elements[i] = ByteBufferUtil.EMPTY_BYTE_BUFFER;
+
+        rm.add(columnFamily, CellNames.compositeSparse(elements, new ColumnIdentifier("s", true), true), bytes(1), 0);
+
+        CommitLog.instance.add(rm);
+        int replayed = 0;
+
+        try
+        {
+            System.setProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY, "true");
+            replayed = CommitLog.instance.resetUnsafe(false);
+        }
+        finally
+        {
+            System.clearProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY);
+        }
+
+        return replayed == 1;
     }
 }
