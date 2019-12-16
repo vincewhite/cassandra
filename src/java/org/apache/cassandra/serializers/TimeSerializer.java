@@ -69,7 +69,7 @@ public class TimeSerializer implements TypeSerializer<Long>
 
     public void validate(ByteBuffer bytes) throws MarshalException
     {
-        if (bytes.remaining() != 8)
+        if (bytes.remaining() != 8 && bytes.remaining() != 0)
             throw new MarshalException(String.format("Expected 8 byte long for time (%d)", bytes.remaining()));
     }
 

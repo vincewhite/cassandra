@@ -41,11 +41,13 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.io.compress.ZstdCompressor;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.config.Config.DiskFailurePolicy;
+import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLogReplayer.CommitLogReplayException;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -80,6 +82,7 @@ public abstract class CommitLogTest
 {
     protected static final String KEYSPACE1 = "CommitLogTest";
     private static final String KEYSPACE2 = "CommitLogTestNonDurable";
+    private static final String KEYSPACE3 = "CommitLogTestStatic";
     protected static final String STANDARD1 = "Standard1";
     private static final String STANDARD2 = "Standard2";
     private static final String CUSTOM1 = "Custom1";
@@ -123,6 +126,19 @@ public abstract class CommitLogTest
                                                  ");", CUSTOM1), KEYSPACE1);
 
 
+        ArrayList<TableMetadata.Builder> customNative = new ArrayList();
+        for (CQL3Type.Native type : CQL3Type.Native.values())
+        {
+            if (type == CQL3Type.Native.COUNTER || type == CQL3Type.Native.EMPTY || type == CQL3Type.Native.DURATION)
+                continue;
+            customNative.add(CreateTableStatement.parse(String.format("CREATE TABLE \"%s\" (" +
+                                                              "k int," +
+                                                              "c1 %s," +
+                                                              "s int static," +
+                                                              "PRIMARY KEY (k, c1)" +
+                                                              ");", "clustering_with_" + type.toString(), type.toString()), KEYSPACE3));
+        }
+
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, STANDARD1, 0, AsciiType.instance, BytesType.instance),
@@ -132,6 +148,9 @@ public abstract class CommitLogTest
                                     KeyspaceParams.simpleTransient(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, STANDARD1, 0, AsciiType.instance, BytesType.instance),
                                     SchemaLoader.standardCFMD(KEYSPACE1, STANDARD2, 0, AsciiType.instance, BytesType.instance));
+        SchemaLoader.createKeyspace(KEYSPACE3,
+                                    KeyspaceParams.simple(1),
+                                    customNative.toArray(new TableMetadata.Builder[0]));
         CompactionManager.instance.disableAutoCompaction();
 
         testKiller = new KillerForTests();
@@ -940,8 +959,48 @@ public abstract class CommitLogTest
             System.clearProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY);
         }
 
-        Assert.assertEquals(replayed, 1);
+        Assert.assertEquals(1, replayed);
+    }
 
+    @Test
+    public void testRecoveryWithNativeClusteringKeysStatic() throws Exception
+    {
+        boolean failed = false;
+        for (TableMetadata tm : Schema.instance.getKeyspaceMetadata(KEYSPACE3).tables)
+        {
+            if (!recoveryWithStatic(KEYSPACE3, tm.name))
+            {
+                failed = true;
+                System.out.println("Failed to replay column family: " + tm.name);
+            }
+        }
+
+        Assert.assertEquals(false, failed);
+    }
+
+    public boolean recoveryWithStatic(String keyspace, String columnFamily) throws Exception
+    {
+        ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(columnFamily);
+        RowUpdateBuilder rb = new RowUpdateBuilder(cfs.metadata(), 0, 1);
+
+        rb.add("s", 2);
+
+        Mutation rm = rb.build();
+        CommitLog.instance.add(rm);
+
+        int replayed = 0;
+
+        try
+        {
+            System.setProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY, "true");
+            replayed = CommitLog.instance.resetUnsafe(false);
+        }
+        finally
+        {
+            System.clearProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY);
+        }
+
+        return replayed == 1;
     }
 }
 
